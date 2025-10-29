@@ -1,8 +1,10 @@
 import os
 import logging
-from flask import Flask, request, jsonify
+from datetime import datetime, timedelta
+from flask import Flask, request, jsonify, render_template, send_file
 from flask_cors import CORS
 from dotenv import load_dotenv
+import pandas as pd
 from models import db, Order
 from utils.notifier import notify_order_ready, notify_order_status_changed
 
@@ -42,6 +44,89 @@ def not_found(error):
 def internal_error(error):
     logger.error(f"Internal server error: {error}")
     return jsonify({'error': 'Внутренняя ошибка сервера'}), 500
+
+
+@app.route('/admin')
+def admin_panel():
+    """Отображение админ-панели"""
+    return render_template('admin.html')
+
+
+@app.route('/api/orders/stats')
+def get_orders_stats():
+    """Статистика по заказам"""
+    try:
+        total = Order.query.count()
+        by_status = db.session.query(
+            Order.status, 
+            db.func.count(Order.id)
+        ).group_by(Order.status).all()
+        
+        today = datetime.now().date()
+        today_count = Order.query.filter(
+            db.func.date(Order.created_at) == today
+        ).count()
+        
+        return jsonify({
+            'total': total,
+            'by_status': dict(by_status),
+            'today': today_count
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"Error fetching stats: {e}")
+        return jsonify({'error': 'Ошибка получения статистики'}), 500
+
+
+@app.route('/export')
+def export_orders():
+    """Экспорт заказов в Excel"""
+    try:
+        # Параметры фильтрации
+        days = request.args.get('days', 30, type=int)
+        status = request.args.get('status', None)
+        
+        # Запрос заказов
+        query = Order.query.filter(
+            Order.created_at >= datetime.now() - timedelta(days=days)
+        )
+        
+        if status:
+            query = query.filter(Order.status == status)
+        
+        orders = query.all()
+        
+        # Формирование DataFrame
+        data = []
+        for order in orders:
+            data.append({
+                'ID': order.id,
+                'Дата': order.created_at.strftime('%d.%m.%Y %H:%M'),
+                'Механик': order.mechanic_name,
+                'Категория': order.category,
+                'VIN': order.vin,
+                'Детали': ', '.join(order.selected_parts),
+                'Оригинал': 'Да' if order.is_original else 'Нет',
+                'Статус': order.status,
+                'Напечатан': 'Да' if order.printed else 'Нет'
+            })
+        
+        df = pd.DataFrame(data)
+        
+        # Сохранение в Excel
+        output_path = f'/tmp/felix_orders_{datetime.now().strftime("%Y%m%d_%H%M%S")}.xlsx'
+        df.to_excel(output_path, index=False, engine='openpyxl')
+        
+        return send_file(
+            output_path,
+            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            as_attachment=True,
+            download_name=f'felix_orders_{datetime.now().strftime("%Y%m%d")}.xlsx'
+        )
+        
+    except Exception as e:
+        logger.error(f"Error exporting orders: {e}")
+        return jsonify({'error': 'Ошибка экспорта заказов'}), 500
 
 
 @app.route('/api/orders', methods=['POST'])
@@ -151,6 +236,8 @@ def update_order(order_id):
             
             if new_status == 'готов':
                 notify_order_ready(order)
+                order.printed = True
+                logger.info(f"Order {order_id} marked as printed automatically")
             elif new_status in ['в работе', 'выдан']:
                 notify_order_status_changed(order, old_status, new_status)
         
