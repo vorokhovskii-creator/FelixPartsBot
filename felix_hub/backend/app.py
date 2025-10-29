@@ -5,6 +5,7 @@ from flask_cors import CORS
 from dotenv import load_dotenv
 from models import db, Order
 from utils.notifier import notify_order_ready, notify_order_status_changed
+from utils.printer import print_order_with_fallback, print_test_receipt
 
 load_dotenv()
 
@@ -150,6 +151,11 @@ def update_order(order_id):
             order.status = new_status
             
             if new_status == 'готов':
+                # Печать чека
+                if print_order_with_fallback(order):
+                    order.printed = True
+                
+                # Уведомление
                 notify_order_ready(order)
             elif new_status in ['в работе', 'выдан']:
                 notify_order_status_changed(order, old_status, new_status)
@@ -209,20 +215,43 @@ def delete_order(order_id):
 
 
 @app.route('/api/orders/<int:order_id>/print', methods=['POST'])
-def print_order(order_id):
+def print_order_manually(order_id):
+    """Принудительная печать чека"""
     try:
         order = Order.query.get(order_id)
         
         if not order:
             return jsonify({'error': 'Заказ не найден'}), 404
         
-        logger.info(f"Print triggered for order: ID={order_id}")
+        success = print_order_with_fallback(order)
         
-        return jsonify({'message': 'Печать инициирована', 'order_id': order_id}), 200
+        if success:
+            order.printed = True
+            db.session.commit()
+            return jsonify({'message': 'Чек отправлен на печать'}), 200
+        else:
+            return jsonify({'error': 'Ошибка печати'}), 500
         
     except Exception as e:
+        db.session.rollback()
         logger.error(f"Error printing order {order_id}: {e}")
         return jsonify({'error': 'Ошибка печати заказа'}), 500
+
+
+@app.route('/api/printer/test', methods=['POST'])
+def test_printer():
+    """Тестовая печать для проверки принтера"""
+    try:
+        success = print_test_receipt()
+        
+        if success:
+            return jsonify({'message': 'Тестовый чек напечатан'}), 200
+        else:
+            return jsonify({'error': 'Ошибка печати'}), 500
+        
+    except Exception as e:
+        logger.error(f"Error testing printer: {e}")
+        return jsonify({'error': 'Ошибка печати'}), 500
 
 
 if __name__ == '__main__':
