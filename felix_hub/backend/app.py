@@ -4,6 +4,7 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 from dotenv import load_dotenv
 from models import db, Order
+from utils.notifier import notify_order_ready, notify_order_status_changed
 
 load_dotenv()
 
@@ -16,7 +17,14 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db.init_app(app)
 CORS(app)
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler('felix_hub.log'),
+        logging.StreamHandler()
+    ]
+)
 logger = logging.getLogger(__name__)
 
 
@@ -135,8 +143,16 @@ def update_order(order_id):
         if not data:
             return jsonify({'error': 'Невалидный JSON'}), 400
         
+        old_status = order.status
+        
         if 'status' in data:
-            order.status = data['status']
+            new_status = data['status']
+            order.status = new_status
+            
+            if new_status == 'готов':
+                notify_order_ready(order)
+            elif new_status in ['в работе', 'выдан']:
+                notify_order_status_changed(order, old_status, new_status)
         
         if 'printed' in data:
             order.printed = data['printed']
