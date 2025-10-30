@@ -241,6 +241,14 @@ curl -X PATCH http://localhost:5000/api/parts/5 \
 - All UI text is in Russian as per project requirements
 - Multi-language support is built-in for future internationalization
 
+## Bug Fixes Applied
+
+### Category Deletion Check
+Fixed an issue where the category deletion endpoint wasn't properly checking for related orders:
+- **Problem**: Bot stores categories with emoji (e.g., "🔧 Двигатель"), but deletion check only looked for name_ru ("Двигатель")
+- **Solution**: Updated `delete_category()` to check for both formats using OR condition
+- **Test Coverage**: Added `test_category_deletion_with_emoji.py` to verify the fix
+
 ## Future Enhancements
 
 Potential improvements identified in documentation:

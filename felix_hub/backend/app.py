@@ -439,7 +439,12 @@ def delete_category(category_id):
         category = Category.query.get_or_404(category_id)
         
         # Проверить, что нет связанных заказов
-        orders_count = Order.query.filter_by(category=category.name_ru).count()
+        # Проверяем как точное совпадение, так и с эмодзи (например, "🔧 Двигатель")
+        category_with_icon = f"{category.icon} {category.name_ru}"
+        orders_count = Order.query.filter(
+            (Order.category == category.name_ru) | 
+            (Order.category == category_with_icon)
+        ).count()
         if orders_count > 0:
             return jsonify({'error': f'Невозможно удалить: существует {orders_count} заказов с этой категорией'}), 400
         
