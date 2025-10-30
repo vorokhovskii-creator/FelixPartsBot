@@ -39,3 +39,49 @@ code {
     padding: 2px 6px;
     border-radius: 3px;
 }
+
+/* RTL support for Hebrew */
+[dir="rtl"] {
+    text-align: right;
+}
+
+[dir="rtl"] .navbar-brand {
+    margin-right: 0;
+    margin-left: 1rem;
+}
+
+[dir="rtl"] .table th,
+[dir="rtl"] .table td {
+    text-align: right;
+}
+
+[dir="rtl"] .btn-group {
+    flex-direction: row-reverse;
+}
+
+[dir="rtl"] .form-label {
+    text-align: right;
+}
+
+[dir="rtl"] .modal-footer {
+    flex-direction: row-reverse;
+}
+
+[dir="rtl"] .d-flex {
+    flex-direction: row-reverse;
+}
+
+[dir="rtl"] .me-2 {
+    margin-right: 0 !important;
+    margin-left: 0.5rem !important;
+}
+
+/* Language button styling */
+.lang-btn {
+    transition: all 0.2s;
+}
+
+.lang-btn.active {
+    background-color: #fff !important;
+    color: #212529 !important;
+}

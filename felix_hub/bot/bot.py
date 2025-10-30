@@ -21,6 +21,7 @@ from config import (
     PHOTO_UPLOAD,
     CONFIRMATION
 )
+from translations import get_text
 
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -34,15 +35,61 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data['mechanic_name'] = user.first_name
     context.user_data['telegram_id'] = str(user.id)
     
+    # If language not set, show language selection
+    if 'language' not in context.user_data:
+        return await select_language(update, context)
+    
+    # Show main menu in selected language
+    lang = context.user_data.get('language', 'ru')
     keyboard = [
-        [InlineKeyboardButton("🆕 Новый заказ", callback_data='new_order')],
-        [InlineKeyboardButton("📋 Мои заказы", callback_data='my_orders')],
-        [InlineKeyboardButton("ℹ️ Помощь", callback_data='help')]
+        [InlineKeyboardButton(get_text('new_order', lang), callback_data='new_order')],
+        [InlineKeyboardButton(get_text('my_orders', lang), callback_data='my_orders')],
+        [InlineKeyboardButton(get_text('change_language', lang), callback_data='change_language')],
+        [InlineKeyboardButton(get_text('help', lang), callback_data='help')]
     ]
     
     await update.message.reply_text(
-        "👋 Привет! Я Felix Parts Bot — помогу заказать запчасти.\n\n"
-        "Выбери действие:",
+        get_text('welcome', lang),
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
+
+
+async def select_language(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Language selection screen"""
+    keyboard = [
+        [InlineKeyboardButton("🇷🇺 Русский", callback_data='lang_ru')],
+        [InlineKeyboardButton("🇮🇱 עברית", callback_data='lang_he')],
+        [InlineKeyboardButton("🇬🇧 English", callback_data='lang_en')]
+    ]
+    
+    text = get_text('select_language', 'ru')
+    
+    if update.message:
+        await update.message.reply_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
+    else:
+        await update.callback_query.message.reply_text(text, reply_markup=InlineKeyboardMarkup(keyboard))
+
+
+async def set_language(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Set selected language"""
+    query = update.callback_query
+    lang = query.data.split('_')[1]  # lang_ru -> ru
+    
+    context.user_data['language'] = lang
+    
+    await query.answer()
+    await query.message.delete()
+    
+    # Show main menu
+    keyboard = [
+        [InlineKeyboardButton(get_text('new_order', lang), callback_data='new_order')],
+        [InlineKeyboardButton(get_text('my_orders', lang), callback_data='my_orders')],
+        [InlineKeyboardButton(get_text('change_language', lang), callback_data='change_language')],
+        [InlineKeyboardButton(get_text('help', lang), callback_data='help')]
+    ]
+    
+    await query.message.reply_text(
+        get_text('welcome', lang),
         reply_markup=InlineKeyboardMarkup(keyboard)
     )
 
@@ -51,16 +98,17 @@ async def select_category(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     
+    lang = context.user_data.get('language', 'ru')
     context.user_data['selected_parts'] = []
     
     keyboard = [
         [InlineKeyboardButton(cat, callback_data=f'cat_{i}')] 
         for i, cat in enumerate(CATEGORIES.keys())
     ]
-    keyboard.append([InlineKeyboardButton("❌ Отмена", callback_data='cancel')])
+    keyboard.append([InlineKeyboardButton(get_text('cancel', lang), callback_data='cancel')])
     
     await query.message.reply_text(
-        "🔍 Выбери категорию запчастей:",
+        get_text('select_category', lang),
         reply_markup=InlineKeyboardMarkup(keyboard)
     )
     return CATEGORY
@@ -82,6 +130,7 @@ async def select_parts(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def show_parts_keyboard(query, context: ContextTypes.DEFAULT_TYPE):
     category = context.user_data['category']
     parts = CATEGORIES[category]
+    lang = context.user_data.get('language', 'ru')
     
     selected = context.user_data.get('selected_parts', [])
     keyboard = []
@@ -93,13 +142,12 @@ async def show_parts_keyboard(query, context: ContextTypes.DEFAULT_TYPE):
             callback_data=f'part_{part}'
         )])
     
-    keyboard.append([InlineKeyboardButton("➕ Добавить вручную", callback_data='manual')])
-    keyboard.append([InlineKeyboardButton("➡️ Далее", callback_data='next_vin')])
-    keyboard.append([InlineKeyboardButton("❌ Отмена", callback_data='cancel')])
+    keyboard.append([InlineKeyboardButton(get_text('add_manual', lang), callback_data='manual')])
+    keyboard.append([InlineKeyboardButton(get_text('next', lang), callback_data='next_vin')])
+    keyboard.append([InlineKeyboardButton(get_text('cancel', lang), callback_data='cancel')])
     
     await query.message.edit_text(
-        f"Выбери детали из списка (можно несколько):\n\n"
-        f"Выбрано: {len(selected)}",
+        get_text('select_parts', lang, count=len(selected)),
         reply_markup=InlineKeyboardMarkup(keyboard)
     )
 
@@ -126,10 +174,11 @@ async def manual_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     
+    lang = context.user_data.get('language', 'ru')
     context.user_data['waiting_manual_part'] = True
     
     await query.message.reply_text(
-        "✏️ Введи название детали вручную:"
+        get_text('enter_manual_part', lang)
     )
     return PARTS_SELECTION
 
@@ -138,6 +187,7 @@ async def add_manual_part(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not context.user_data.get('waiting_manual_part'):
         return PARTS_SELECTION
     
+    lang = context.user_data.get('language', 'ru')
     manual_part = update.message.text.strip()
     
     if manual_part:
@@ -147,13 +197,12 @@ async def add_manual_part(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data['waiting_manual_part'] = False
         
         keyboard = [
-            [InlineKeyboardButton("✅ Продолжить выбор", callback_data='continue_selection')],
-            [InlineKeyboardButton("➡️ Далее", callback_data='next_vin')]
+            [InlineKeyboardButton(get_text('continue_selection', lang), callback_data='continue_selection')],
+            [InlineKeyboardButton(get_text('next', lang), callback_data='next_vin')]
         ]
         
         await update.message.reply_text(
-            f"✅ Добавлено: {manual_part}\n\n"
-            f"Всего выбрано: {len(selected)}",
+            get_text('manual_part_added', lang, part=manual_part, count=len(selected)),
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
     
@@ -172,39 +221,41 @@ async def input_vin(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     
+    lang = context.user_data.get('language', 'ru')
     selected = context.user_data.get('selected_parts', [])
     
     if len(selected) == 0:
         await query.message.reply_text(
-            "❌ Выбери хотя бы одну деталь!"
+            get_text('select_at_least_one', lang)
         )
         await show_parts_keyboard(query, context)
         return PARTS_SELECTION
     
     await query.message.reply_text(
-        "🚗 Введи VIN автомобиля (минимум 4 символа):"
+        get_text('enter_vin', lang)
     )
     return VIN_INPUT
 
 
 async def process_vin(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    lang = context.user_data.get('language', 'ru')
     vin = update.message.text.strip()
     
     if len(vin) < 4:
         await update.message.reply_text(
-            "❌ VIN слишком короткий. Введи минимум 4 символа:"
+            get_text('vin_too_short', lang)
         )
         return VIN_INPUT
     
     context.user_data['vin'] = vin
     
     keyboard = [
-        [InlineKeyboardButton("✨ Оригинал", callback_data='original_yes')],
-        [InlineKeyboardButton("🔧 Не оригинал", callback_data='original_no')]
+        [InlineKeyboardButton(get_text('original', lang), callback_data='original_yes')],
+        [InlineKeyboardButton(get_text('not_original', lang), callback_data='original_no')]
     ]
     
     await update.message.reply_text(
-        "Какие запчасти нужны?",
+        get_text('parts_type_question', lang),
         reply_markup=InlineKeyboardMarkup(keyboard)
     )
     return ORIGINAL_CHOICE
@@ -214,16 +265,17 @@ async def original_choice(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     
+    lang = context.user_data.get('language', 'ru')
     is_original = query.data == 'original_yes'
     context.user_data['is_original'] = is_original
     
     keyboard = [
-        [InlineKeyboardButton("📸 Загрузить фото", callback_data='upload_photo')],
-        [InlineKeyboardButton("⏭️ Пропустить", callback_data='skip_photo')]
+        [InlineKeyboardButton(get_text('upload_photo', lang), callback_data='upload_photo')],
+        [InlineKeyboardButton(get_text('skip_photo', lang), callback_data='skip_photo')]
     ]
     
     await query.message.reply_text(
-        "Хочешь загрузить фото детали?",
+        get_text('photo_question', lang),
         reply_markup=InlineKeyboardMarkup(keyboard)
     )
     return PHOTO_UPLOAD
@@ -233,19 +285,21 @@ async def request_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     
+    lang = context.user_data.get('language', 'ru')
     await query.message.reply_text(
-        "📸 Отправь фото детали:"
+        get_text('send_photo', lang)
     )
     return PHOTO_UPLOAD
 
 
 async def upload_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    lang = context.user_data.get('language', 'ru')
     if update.message.photo:
         photo = update.message.photo[-1]
         file = await photo.get_file()
         context.user_data['photo_url'] = file.file_path
         
-        await update.message.reply_text("✅ Фото получено!")
+        await update.message.reply_text(get_text('photo_received', lang))
     
     await show_confirmation(update, context)
     return CONFIRMATION
@@ -262,25 +316,24 @@ async def skip_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def show_confirmation(update: Update, context: ContextTypes.DEFAULT_TYPE):
     data = context.user_data
+    lang = data.get('language', 'ru')
     
-    summary = (
-        f"📋 <b>Проверь заказ:</b>\n\n"
-        f"👤 Механик: {data['mechanic_name']}\n"
-        f"📦 Категория: {data['category']}\n"
-        f"🚗 VIN: {data['vin']}\n"
-        f"🔧 Детали:\n"
+    parts_text = "\n".join([f"  • {part}" for part in data['selected_parts']])
+    original_text = get_text('original_yes' if data['is_original'] else 'original_no', lang)
+    photo_text = get_text('photo_attached', lang) if data.get('photo_url') else ""
+    
+    summary = get_text('check_order', lang,
+        mechanic=data['mechanic_name'],
+        category=data['category'],
+        vin=data['vin'],
+        parts=parts_text,
+        original_text=original_text,
+        photo_text=photo_text
     )
     
-    for part in data['selected_parts']:
-        summary += f"  • {part}\n"
-    
-    summary += f"\n{'✨ Оригинал' if data['is_original'] else '🔧 Не оригинал'}\n"
-    if data.get('photo_url'):
-        summary += "📸 Фото прикреплено\n"
-    
     keyboard = [
-        [InlineKeyboardButton("✅ Подтвердить", callback_data='confirm')],
-        [InlineKeyboardButton("❌ Отменить", callback_data='cancel')]
+        [InlineKeyboardButton(get_text('confirm', lang), callback_data='confirm')],
+        [InlineKeyboardButton(get_text('cancel', lang), callback_data='cancel')]
     ]
     
     if update.callback_query:
@@ -302,6 +355,7 @@ async def confirm_order(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.answer()
     
     data = context.user_data
+    lang = data.get('language', 'ru')
     
     order_data = {
         "mechanic_name": data['mechanic_name'],
@@ -310,7 +364,8 @@ async def confirm_order(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "vin": data['vin'],
         "selected_parts": data['selected_parts'],
         "is_original": data['is_original'],
-        "photo_url": data.get('photo_url')
+        "photo_url": data.get('photo_url'),
+        "language": lang
     }
     
     try:
@@ -323,32 +378,34 @@ async def confirm_order(update: Update, context: ContextTypes.DEFAULT_TYPE):
         if response.status_code == 201:
             order = response.json()
             await query.message.reply_text(
-                f"✅ Заказ №{order['id']} создан!\n\n"
-                f"Ожидай уведомление о готовности.",
+                get_text('order_created', lang, order_id=order['id']),
                 reply_markup=InlineKeyboardMarkup([[
-                    InlineKeyboardButton("🆕 Новый заказ", callback_data='new_order')
+                    InlineKeyboardButton(get_text('new_order', lang), callback_data='new_order')
                 ]])
             )
         else:
             error_msg = response.json().get('error', 'Неизвестная ошибка')
             await query.message.reply_text(
-                f"❌ Ошибка создания заказа: {error_msg}"
+                get_text('order_creation_error', lang, error=error_msg)
             )
     except requests.exceptions.Timeout:
         await query.message.reply_text(
-            "❌ Превышено время ожидания ответа от сервера. Попробуй позже."
+            get_text('timeout_error', lang)
         )
     except requests.exceptions.ConnectionError:
         await query.message.reply_text(
-            "❌ Не удается подключиться к серверу. Проверь соединение."
+            get_text('connection_error', lang)
         )
     except Exception as e:
         logger.error(f"Error creating order: {e}")
         await query.message.reply_text(
-            f"❌ Ошибка связи с сервером. Попробуй позже."
+            get_text('server_error', lang)
         )
     
+    # Clear user_data but preserve language
+    saved_lang = context.user_data.get('language', 'ru')
     context.user_data.clear()
+    context.user_data['language'] = saved_lang
     return ConversationHandler.END
 
 
@@ -356,6 +413,7 @@ async def my_orders(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     
+    lang = context.user_data.get('language', 'ru')
     telegram_id = str(update.effective_user.id)
     
     try:
@@ -370,11 +428,11 @@ async def my_orders(update: Update, context: ContextTypes.DEFAULT_TYPE):
             
             if not orders:
                 await query.message.reply_text(
-                    "У тебя пока нет заказов."
+                    get_text('no_orders', lang)
                 )
                 return
             
-            text = "📋 <b>Твои заказы:</b>\n\n"
+            text = get_text('your_orders', lang)
             for order in orders:
                 status_emoji = {
                     'новый': '🆕',
@@ -383,12 +441,12 @@ async def my_orders(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     'выдан': '📦'
                 }
                 
-                text += (
-                    f"{status_emoji.get(order['status'], '❓')} "
-                    f"<b>Заказ №{order['id']}</b>\n"
-                    f"VIN: {order['vin']}\n"
-                    f"Статус: {order['status']}\n"
-                    f"Дата: {order['created_at'][:10]}\n\n"
+                text += get_text('order_item', lang,
+                    emoji=status_emoji.get(order['status'], '❓'),
+                    order_id=order['id'],
+                    vin=order['vin'],
+                    status=order['status'],
+                    date=order['created_at'][:10]
                 )
             
             await query.message.reply_text(
@@ -397,20 +455,20 @@ async def my_orders(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
         else:
             await query.message.reply_text(
-                "❌ Ошибка загрузки заказов."
+                get_text('orders_load_error', lang)
             )
     except requests.exceptions.Timeout:
         await query.message.reply_text(
-            "❌ Превышено время ожидания ответа от сервера."
+            get_text('timeout_error', lang)
         )
     except requests.exceptions.ConnectionError:
         await query.message.reply_text(
-            "❌ Не удается подключиться к серверу."
+            get_text('connection_error', lang)
         )
     except Exception as e:
         logger.error(f"Error fetching orders: {e}")
         await query.message.reply_text(
-            f"❌ Ошибка загрузки заказов."
+            get_text('orders_load_error', lang)
         )
 
 
@@ -418,22 +476,8 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     
-    help_text = (
-        "ℹ️ <b>Помощь</b>\n\n"
-        "Felix Parts Bot помогает заказывать запчасти для СТО.\n\n"
-        "<b>Основные команды:</b>\n"
-        "• 🆕 Новый заказ - создать заказ на запчасти\n"
-        "• 📋 Мои заказы - просмотр твоих заказов\n"
-        "• ℹ️ Помощь - это сообщение\n\n"
-        "<b>Процесс заказа:</b>\n"
-        "1️⃣ Выбери категорию запчастей\n"
-        "2️⃣ Отметь нужные детали из списка\n"
-        "3️⃣ Введи VIN автомобиля\n"
-        "4️⃣ Укажи тип запчастей (оригинал/не оригинал)\n"
-        "5️⃣ Загрузи фото (опционально)\n"
-        "6️⃣ Подтверди заказ\n\n"
-        "По вопросам обращайся к администратору."
-    )
+    lang = context.user_data.get('language', 'ru')
+    help_text = get_text('help_text', lang)
     
     await query.message.reply_text(
         help_text,
@@ -445,12 +489,17 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     
+    lang = context.user_data.get('language', 'ru')
+    
+    # Clear user_data but preserve language
+    saved_lang = context.user_data.get('language', 'ru')
     context.user_data.clear()
+    context.user_data['language'] = saved_lang
     
     await query.message.reply_text(
-        "❌ Действие отменено.",
+        get_text('action_cancelled', lang),
         reply_markup=InlineKeyboardMarkup([[
-            InlineKeyboardButton("🆕 Новый заказ", callback_data='new_order')
+            InlineKeyboardButton(get_text('new_order', lang), callback_data='new_order')
         ]])
     )
     return ConversationHandler.END
@@ -490,7 +539,8 @@ def main():
     application.add_handler(conv_handler)
     application.add_handler(CallbackQueryHandler(my_orders, pattern='^my_orders$'))
     application.add_handler(CallbackQueryHandler(help_command, pattern='^help$'))
-    
+    application.add_handler(CallbackQueryHandler(select_language, pattern='^change_language$'))
+    application.add_handler(CallbackQueryHandler(set_language, pattern='^lang_'))
     logger.info("Bot started")
     application.run_polling(allowed_updates=Update.ALL_TYPES)
 
