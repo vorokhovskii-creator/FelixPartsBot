@@ -7,6 +7,7 @@ from flask_cors import CORS
 from dotenv import load_dotenv
 import pandas as pd
 from sqlalchemy import text
+import asyncio
 
 # Add backend directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -16,6 +17,18 @@ from utils.notifier import notify_order_ready, notify_order_status_changed
 from utils.printer import print_order_with_fallback, print_test_receipt
 
 load_dotenv()
+
+# Import telegram modules для webhook режима
+try:
+    from telegram import Update
+    from telegram.ext import Application
+    # Import bot setup_handlers
+    sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'bot'))
+    from bot import setup_handlers
+    TELEGRAM_AVAILABLE = True
+except ImportError as e:
+    logging.warning(f"Telegram bot modules not available: {e}")
+    TELEGRAM_AVAILABLE = False
 
 app = Flask(__name__)
 
@@ -633,6 +646,85 @@ def delete_part(part_id):
         db.session.rollback()
         logger.error(f"Error deleting part {part_id}: {e}")
         return jsonify({'error': 'Ошибка удаления детали'}), 500
+
+
+# === Telegram Webhook ===
+
+# Глобальная переменная для telegram application
+telegram_app = None
+
+
+def setup_telegram_webhook():
+    """Настроить Telegram webhook"""
+    global telegram_app
+    
+    if not TELEGRAM_AVAILABLE:
+        logger.warning("⚠️  Telegram modules not available, webhook disabled")
+        return
+    
+    TELEGRAM_TOKEN = os.environ.get('TELEGRAM_TOKEN')
+    WEBHOOK_URL = os.environ.get('WEBHOOK_URL')
+    
+    if not TELEGRAM_TOKEN:
+        logger.warning("⚠️  TELEGRAM_TOKEN not set, bot webhook disabled")
+        return
+    
+    if not WEBHOOK_URL:
+        logger.warning("⚠️  WEBHOOK_URL not set, bot webhook disabled")
+        return
+    
+    try:
+        # Создать application
+        telegram_app = Application.builder().token(TELEGRAM_TOKEN).build()
+        
+        # Зарегистрировать все handlers из бота
+        setup_handlers(telegram_app)
+        
+        # Установить webhook
+        webhook_url = f"{WEBHOOK_URL}/webhook"
+        
+        # Запустить event loop для установки webhook
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        loop.run_until_complete(telegram_app.bot.set_webhook(webhook_url))
+        loop.close()
+        
+        logger.info(f"✅ Telegram webhook set to: {webhook_url}")
+    except Exception as e:
+        logger.error(f"❌ Error setting up webhook: {e}")
+        telegram_app = None
+
+
+@app.route('/webhook', methods=['POST'])
+def telegram_webhook():
+    """Endpoint для приёма обновлений от Telegram"""
+    if not telegram_app:
+        return jsonify({'error': 'Bot not configured'}), 500
+    
+    try:
+        # Получить update от Telegram
+        update_data = request.get_json()
+        
+        if not update_data:
+            return jsonify({'error': 'No data'}), 400
+        
+        update = Update.de_json(update_data, telegram_app.bot)
+        
+        # Обработать update асинхронно
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        loop.run_until_complete(telegram_app.process_update(update))
+        loop.close()
+        
+        return jsonify({'ok': True}), 200
+    except Exception as e:
+        logger.error(f"❌ Webhook error: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+# Инициализировать webhook при старте приложения
+with app.app_context():
+    setup_telegram_webhook()
 
 
 if __name__ == '__main__':

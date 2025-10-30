@@ -591,13 +591,10 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return ConversationHandler.END
 
 
-def main():
-    if not BOT_TOKEN:
-        logger.error("BOT_TOKEN not found in environment variables")
-        return
+def setup_handlers(application):
+    """Зарегистрировать все handlers (для использования в webhook или polling)"""
     
-    application = Application.builder().token(BOT_TOKEN).build()
-    
+    # Conversation handler для создания заказа
     conv_handler = ConversationHandler(
         entry_points=[CallbackQueryHandler(select_category, pattern='^new_order$')],
         states={
@@ -621,13 +618,33 @@ def main():
         fallbacks=[CallbackQueryHandler(cancel, pattern='^cancel$')]
     )
     
+    # Зарегистрировать все handlers
     application.add_handler(CommandHandler("start", start))
     application.add_handler(conv_handler)
     application.add_handler(CallbackQueryHandler(my_orders, pattern='^my_orders$'))
     application.add_handler(CallbackQueryHandler(help_command, pattern='^help$'))
     application.add_handler(CallbackQueryHandler(select_language, pattern='^change_language$'))
     application.add_handler(CallbackQueryHandler(set_language, pattern='^lang_'))
-    logger.info("Bot started")
+    
+    logger.info("✅ Bot handlers registered")
+    return application
+
+
+def main():
+    """Запустить бота в polling режиме (для локальной разработки)"""
+    
+    if not BOT_TOKEN:
+        logger.error("BOT_TOKEN not found in environment variables")
+        return
+    
+    # Создать application
+    application = Application.builder().token(BOT_TOKEN).build()
+    
+    # Зарегистрировать handlers
+    setup_handlers(application)
+    
+    # Запустить polling
+    logger.info("🤖 Starting bot in polling mode...")
     application.run_polling(allowed_updates=Update.ALL_TYPES)
 
 
