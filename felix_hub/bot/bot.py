@@ -1,3 +1,5 @@
+import os
+import sys
 import logging
 import requests
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
@@ -10,6 +12,10 @@ from telegram.ext import (
     ContextTypes,
     filters
 )
+
+# Add bot directory to path for imports
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
 from config import (
     BOT_TOKEN,
     BACKEND_URL,
