@@ -7,8 +7,8 @@ python-dotenv==1.0.0
 # Database
 psycopg2-binary==2.9.9
 
-# Telegram Bot
-python-telegram-bot==21.0
+# Telegram Bot (with webhook support)
+python-telegram-bot[webhooks]==21.0
 
 # HTTP requests
 requests==2.31.0
