@@ -1,0 +1,30 @@
+services:
+  # Flask Backend (Web Service)
+  - type: web
+    name: felix-hub-backend
+    env: python
+    region: frankfurt
+    plan: free
+    branch: main
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "gunicorn -w 2 -b 0.0.0.0:$PORT felix_hub.backend.app:app"
+    healthCheckPath: /health
+    autoDeploy: true
+
+  # Telegram Bot (Background Worker)
+  - type: worker
+    name: felix-hub-bot
+    env: python
+    region: frankfurt
+    plan: free
+    branch: main
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "python -m felix_hub.bot.bot"
+    autoDeploy: true
+
+databases:
+  # PostgreSQL Database
+  - name: felix-hub-db
+    databaseName: felix_hub
+    plan: free
+    region: frankfurt
