@@ -3,8 +3,19 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-BOT_TOKEN = os.getenv('BOT_TOKEN')
+# Telegram Bot Configuration
+TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN') or os.getenv('BOT_TOKEN')
 BACKEND_URL = os.getenv('BACKEND_URL', 'http://localhost:5000')
+
+# Admin IDs configuration
+ADMIN_IDS = [int(x) for x in os.getenv('ADMIN_IDS', '').split(',') if x.strip()]
+
+# Validate required configuration
+if not TELEGRAM_TOKEN:
+    raise ValueError("TELEGRAM_TOKEN not found in environment variables")
+
+# Keep backward compatibility
+BOT_TOKEN = TELEGRAM_TOKEN
 
 CATEGORIES = {
     "🔧 Тормоза": [

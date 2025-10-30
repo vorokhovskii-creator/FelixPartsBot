@@ -1,10 +1,16 @@
 import os
+import sys
 import logging
 from datetime import datetime, timedelta
 from flask import Flask, request, jsonify, render_template, send_file
 from flask_cors import CORS
 from dotenv import load_dotenv
 import pandas as pd
+from sqlalchemy import text
+
+# Add backend directory to path for imports
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
 from models import db, Order, Category, Part
 from utils.notifier import notify_order_ready, notify_order_status_changed
 from utils.printer import print_order_with_fallback, print_test_receipt
@@ -13,12 +19,24 @@ load_dotenv()
 
 app = Flask(__name__)
 
-app.config['SECRET_KEY'] = os.getenv('FLASK_SECRET_KEY', 'dev-secret-key')
-app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'sqlite:///database.db')
+# Secret key configuration
+app.config['SECRET_KEY'] = os.getenv('SECRET_KEY') or os.getenv('FLASK_SECRET_KEY', 'dev-secret-key')
+
+# Database configuration with PostgreSQL support
+DATABASE_URL = os.getenv('DATABASE_URL', 'sqlite:///database.db')
+# Railway provides DATABASE_URL with postgres://
+# But SQLAlchemy 1.4+ requires postgresql://
+if DATABASE_URL.startswith('postgres://'):
+    DATABASE_URL = DATABASE_URL.replace('postgres://', 'postgresql://', 1)
+
+app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE_URL
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db.init_app(app)
-CORS(app)
+
+# CORS configuration for production
+ALLOWED_ORIGINS = os.getenv('ALLOWED_ORIGINS', '*').split(',')
+CORS(app, origins=ALLOWED_ORIGINS)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -45,6 +63,23 @@ def not_found(error):
 def internal_error(error):
     logger.error(f"Internal server error: {error}")
     return jsonify({'error': 'Внутренняя ошибка сервера'}), 500
+
+
+@app.route('/health')
+def health_check():
+    """Health check для Railway"""
+    try:
+        with db.engine.connect() as conn:
+            conn.execute(text('SELECT 1'))
+        db_status = 'connected'
+    except:
+        db_status = 'disconnected'
+    
+    return jsonify({
+        'status': 'healthy',
+        'database': db_status,
+        'timestamp': datetime.utcnow().isoformat()
+    }), 200
 
 
 @app.route('/admin')
@@ -601,7 +636,13 @@ def delete_part(part_id):
 
 
 if __name__ == '__main__':
+    # Создать таблицы если их нет
     with app.app_context():
         db.create_all()
         logger.info("Database initialized")
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    
+    # Production: gunicorn управляет запуском
+    # Development: запускается напрямую
+    port = int(os.getenv('PORT', 5000))
+    debug = os.getenv('FLASK_ENV') != 'production'
+    app.run(host='0.0.0.0', port=port, debug=debug)
