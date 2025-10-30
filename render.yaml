@@ -3,7 +3,7 @@ services:
   - type: web
     name: felix-hub-backend
     env: python
-    pythonVersion: "3.10.12" 
+    pythonVersion: "3.11.9"
     region: frankfurt
     plan: free
     branch: main
