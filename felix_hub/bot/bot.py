@@ -29,6 +29,46 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+async def load_categories_from_api():
+    """Загрузить категории из backend API"""
+    try:
+        response = requests.get(f"{BACKEND_URL}/api/categories", timeout=5)
+        if response.status_code == 200:
+            categories = response.json()
+            result = {}
+            for cat in categories:
+                key = f"{cat['icon']} {cat['name_ru']}"
+                result[key] = {'id': cat['id'], 'parts': []}
+            return result
+    except Exception as e:
+        logger.warning(f"Failed to load categories from API: {e}")
+    
+    logger.info("Using fallback categories from config.py")
+    result = {}
+    for key in CATEGORIES.keys():
+        result[key] = {'id': None, 'parts': []}
+    return result
+
+
+async def load_parts_from_api(category_id, category_name):
+    """Загрузить детали категории из API"""
+    if category_id:
+        try:
+            response = requests.get(
+                f"{BACKEND_URL}/api/parts",
+                params={'category_id': category_id},
+                timeout=5
+            )
+            if response.status_code == 200:
+                parts = response.json()
+                return [p['name_ru'] for p in parts if p['is_common']]
+        except Exception as e:
+            logger.warning(f"Failed to load parts from API: {e}")
+    
+    logger.info(f"Using fallback parts from config.py for {category_name}")
+    return CATEGORIES.get(category_name, [])
+
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     context.user_data['mechanic_name'] = user.first_name
@@ -53,9 +93,12 @@ async def select_category(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     context.user_data['selected_parts'] = []
     
+    categories = await load_categories_from_api()
+    context.user_data['categories'] = categories
+    
     keyboard = [
         [InlineKeyboardButton(cat, callback_data=f'cat_{i}')] 
-        for i, cat in enumerate(CATEGORIES.keys())
+        for i, cat in enumerate(categories.keys())
     ]
     keyboard.append([InlineKeyboardButton("❌ Отмена", callback_data='cancel')])
     
@@ -70,10 +113,19 @@ async def select_parts(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     
+    categories = context.user_data.get('categories', {})
     cat_index = int(query.data.split('_')[1])
-    category = list(CATEGORIES.keys())[cat_index]
-    context.user_data['category'] = category
+    category_name = list(categories.keys())[cat_index]
+    
+    context.user_data['category'] = category_name
+    context.user_data['category_id'] = categories[category_name]['id']
     context.user_data['selected_parts'] = []
+    
+    parts = await load_parts_from_api(
+        categories[category_name]['id'],
+        category_name
+    )
+    context.user_data['available_parts'] = parts
     
     await show_parts_keyboard(query, context)
     return PARTS_SELECTION
@@ -81,7 +133,7 @@ async def select_parts(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def show_parts_keyboard(query, context: ContextTypes.DEFAULT_TYPE):
     category = context.user_data['category']
-    parts = CATEGORIES[category]
+    parts = context.user_data.get('available_parts', [])
     
     selected = context.user_data.get('selected_parts', [])
     keyboard = []

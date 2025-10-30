@@ -5,7 +5,7 @@ from flask import Flask, request, jsonify, render_template, send_file
 from flask_cors import CORS
 from dotenv import load_dotenv
 import pandas as pd
-from models import db, Order
+from models import db, Order, Category, Part
 from utils.notifier import notify_order_ready, notify_order_status_changed
 from utils.printer import print_order_with_fallback, print_test_receipt
 
@@ -51,6 +51,12 @@ def internal_error(error):
 def admin_panel():
     """Отображение админ-панели"""
     return render_template('admin.html')
+
+
+@app.route('/catalog')
+def catalog_page():
+    """Страница управления каталогом"""
+    return render_template('catalog.html')
 
 
 @app.route('/api/orders/stats')
@@ -341,6 +347,210 @@ def test_printer():
     except Exception as e:
         logger.error(f"Error testing printer: {e}")
         return jsonify({'error': 'Ошибка печати'}), 500
+
+
+@app.route('/api/categories', methods=['GET'])
+def get_categories():
+    """Получить список всех категорий"""
+    try:
+        categories = Category.query.order_by(Category.sort_order).all()
+        return jsonify([cat.to_dict() for cat in categories]), 200
+    except Exception as e:
+        logger.error(f"Error fetching categories: {e}")
+        return jsonify({'error': 'Ошибка получения категорий'}), 500
+
+
+@app.route('/api/categories/<int:category_id>', methods=['GET'])
+def get_category(category_id):
+    """Получить категорию по ID"""
+    try:
+        category = Category.query.get_or_404(category_id)
+        return jsonify(category.to_dict()), 200
+    except Exception as e:
+        logger.error(f"Error fetching category {category_id}: {e}")
+        return jsonify({'error': 'Категория не найдена'}), 404
+
+
+@app.route('/api/categories', methods=['POST'])
+def create_category():
+    """Создать новую категорию"""
+    try:
+        data = request.get_json()
+        
+        if not data or not data.get('name_ru'):
+            return jsonify({'error': 'name_ru обязательно'}), 400
+        
+        category = Category(
+            name_ru=data['name_ru'],
+            name_he=data.get('name_he'),
+            name_en=data.get('name_en'),
+            icon=data.get('icon', '🔧'),
+            sort_order=data.get('sort_order', 0)
+        )
+        
+        db.session.add(category)
+        db.session.commit()
+        
+        logger.info(f"Category created: ID={category.id}, name={category.name_ru}")
+        return jsonify(category.to_dict()), 201
+        
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error creating category: {e}")
+        return jsonify({'error': 'Ошибка создания категории'}), 500
+
+
+@app.route('/api/categories/<int:category_id>', methods=['PATCH'])
+def update_category(category_id):
+    """Обновить категорию"""
+    try:
+        category = Category.query.get_or_404(category_id)
+        data = request.get_json()
+        
+        if not data:
+            return jsonify({'error': 'Невалидный JSON'}), 400
+        
+        if 'name_ru' in data:
+            category.name_ru = data['name_ru']
+        if 'name_he' in data:
+            category.name_he = data['name_he']
+        if 'name_en' in data:
+            category.name_en = data['name_en']
+        if 'icon' in data:
+            category.icon = data['icon']
+        if 'sort_order' in data:
+            category.sort_order = data['sort_order']
+        
+        db.session.commit()
+        
+        logger.info(f"Category updated: ID={category_id}")
+        return jsonify(category.to_dict()), 200
+        
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error updating category {category_id}: {e}")
+        return jsonify({'error': 'Ошибка обновления категории'}), 500
+
+
+@app.route('/api/categories/<int:category_id>', methods=['DELETE'])
+def delete_category(category_id):
+    """Удалить категорию"""
+    try:
+        category = Category.query.get_or_404(category_id)
+        
+        # Проверить, что нет связанных заказов
+        orders_count = Order.query.filter_by(category=category.name_ru).count()
+        if orders_count > 0:
+            return jsonify({'error': f'Невозможно удалить: существует {orders_count} заказов с этой категорией'}), 400
+        
+        db.session.delete(category)
+        db.session.commit()
+        
+        logger.info(f"Category deleted: ID={category_id}")
+        return '', 204
+        
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error deleting category {category_id}: {e}")
+        return jsonify({'error': 'Ошибка удаления категории'}), 500
+
+
+@app.route('/api/parts', methods=['GET'])
+def get_parts():
+    """Получить список деталей (опционально с фильтром по категории)"""
+    try:
+        category_id = request.args.get('category_id', type=int)
+        
+        query = Part.query
+        if category_id:
+            query = query.filter_by(category_id=category_id)
+        
+        parts = query.order_by(Part.sort_order).all()
+        return jsonify([part.to_dict() for part in parts]), 200
+        
+    except Exception as e:
+        logger.error(f"Error fetching parts: {e}")
+        return jsonify({'error': 'Ошибка получения деталей'}), 500
+
+
+@app.route('/api/parts', methods=['POST'])
+def create_part():
+    """Создать новую деталь"""
+    try:
+        data = request.get_json()
+        
+        if not data or not data.get('category_id') or not data.get('name_ru'):
+            return jsonify({'error': 'category_id и name_ru обязательны'}), 400
+        
+        part = Part(
+            category_id=data['category_id'],
+            name_ru=data['name_ru'],
+            name_he=data.get('name_he'),
+            name_en=data.get('name_en'),
+            is_common=data.get('is_common', True),
+            sort_order=data.get('sort_order', 0)
+        )
+        
+        db.session.add(part)
+        db.session.commit()
+        
+        logger.info(f"Part created: ID={part.id}, name={part.name_ru}")
+        return jsonify(part.to_dict()), 201
+        
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error creating part: {e}")
+        return jsonify({'error': 'Ошибка создания детали'}), 500
+
+
+@app.route('/api/parts/<int:part_id>', methods=['PATCH'])
+def update_part(part_id):
+    """Обновить деталь"""
+    try:
+        part = Part.query.get_or_404(part_id)
+        data = request.get_json()
+        
+        if not data:
+            return jsonify({'error': 'Невалидный JSON'}), 400
+        
+        if 'name_ru' in data:
+            part.name_ru = data['name_ru']
+        if 'name_he' in data:
+            part.name_he = data['name_he']
+        if 'name_en' in data:
+            part.name_en = data['name_en']
+        if 'is_common' in data:
+            part.is_common = data['is_common']
+        if 'sort_order' in data:
+            part.sort_order = data['sort_order']
+        
+        db.session.commit()
+        
+        logger.info(f"Part updated: ID={part_id}")
+        return jsonify(part.to_dict()), 200
+        
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error updating part {part_id}: {e}")
+        return jsonify({'error': 'Ошибка обновления детали'}), 500
+
+
+@app.route('/api/parts/<int:part_id>', methods=['DELETE'])
+def delete_part(part_id):
+    """Удалить деталь"""
+    try:
+        part = Part.query.get_or_404(part_id)
+        
+        db.session.delete(part)
+        db.session.commit()
+        
+        logger.info(f"Part deleted: ID={part_id}")
+        return '', 204
+        
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error deleting part {part_id}: {e}")
+        return jsonify({'error': 'Ошибка удаления детали'}), 500
 
 
 if __name__ == '__main__':
