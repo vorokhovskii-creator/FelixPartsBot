@@ -3,6 +3,7 @@ services:
   - type: web
     name: felix-hub-backend
     env: python
+    pythonVersion: "3.10.12" 
     region: frankfurt
     plan: free
     branch: main
@@ -15,6 +16,7 @@ services:
   - type: worker
     name: felix-hub-bot
     env: python
+    pythonVersion: "3.10.12" 
     region: frankfurt
     plan: free
     branch: main
