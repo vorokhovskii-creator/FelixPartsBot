@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Каталог запчастей - Felix Hub</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <nav class="navbar navbar-dark bg-dark">
+        <div class="container-fluid">
+            <span class="navbar-brand mb-0 h1">📦 Каталог запчастей</span>
+            <div>
+                <a href="/admin" class="btn btn-secondary">← К заказам</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid mt-4">
+        <div class="row">
+            <!-- Левая колонка - Категории -->
+            <div class="col-md-4">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">Категории</h5>
+                        <button class="btn btn-sm btn-primary" onclick="showCategoryModal()">+ Добавить</button>
+                    </div>
+                    <div class="card-body">
+                        <div id="categories-list" class="list-group">
+                            <div class="text-center py-3">
+                                <div class="spinner-border" role="status">
+                                    <span class="visually-hidden">Загрузка...</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Правая колонка - Детали -->
+            <div class="col-md-8">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0" id="parts-title">Выберите категорию</h5>
+                        <button class="btn btn-sm btn-primary" id="add-part-btn" onclick="showPartModal()" disabled>+ Добавить деталь</button>
+                    </div>
+                    <div class="card-body">
+                        <div id="parts-list">
+                            <div class="alert alert-info">Выберите категорию для просмотра деталей</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модальное окно категории -->
+    <div class="modal fade" id="categoryModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="categoryModalTitle">Добавить категорию</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="categoryForm">
+                        <input type="hidden" id="category-id">
+                        
+                        <div class="mb-3">
+                            <label for="category-icon" class="form-label">Иконка</label>
+                            <input type="text" class="form-control" id="category-icon" placeholder="🔧" maxlength="10">
+                            <small class="text-muted">Можно использовать эмодзи</small>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="category-name-ru" class="form-label">Название (RU) <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="category-name-ru" required>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="category-name-he" class="form-label">Название (HE)</label>
+                            <input type="text" class="form-control" id="category-name-he">
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="category-name-en" class="form-label">Название (EN)</label>
+                            <input type="text" class="form-control" id="category-name-en">
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="category-sort" class="form-label">Порядок сортировки</label>
+                            <input type="number" class="form-control" id="category-sort" value="0">
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                    <button type="button" class="btn btn-primary" onclick="saveCategory()">Сохранить</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модальное окно детали -->
+    <div class="modal fade" id="partModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="partModalTitle">Добавить деталь</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="partForm">
+                        <input type="hidden" id="part-id">
+                        <input type="hidden" id="part-category-id">
+                        
+                        <div class="mb-3">
+                            <label for="part-name-ru" class="form-label">Название (RU) <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="part-name-ru" required>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="part-name-he" class="form-label">Название (HE)</label>
+                            <input type="text" class="form-control" id="part-name-he">
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="part-name-en" class="form-label">Название (EN)</label>
+                            <input type="text" class="form-control" id="part-name-en">
+                        </div>
+                        
+                        <div class="mb-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="part-is-common" checked>
+                                <label class="form-check-label" for="part-is-common">
+                                    Показывать в чек-листе
+                                </label>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="part-sort" class="form-label">Порядок сортировки</label>
+                            <input type="number" class="form-control" id="part-sort" value="0">
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                    <button type="button" class="btn btn-primary" onclick="savePart()">Сохранить</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="{{ url_for('static', filename='catalog.js') }}"></script>
+</body>
+</html>
