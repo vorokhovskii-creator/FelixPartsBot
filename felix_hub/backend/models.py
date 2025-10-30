@@ -16,6 +16,7 @@ class Order(db.Model):
     photo_url = db.Column(db.String(250), nullable=True)
     status = db.Column(db.String(50), default="новый")
     printed = db.Column(db.Boolean, default=False)
+    language = db.Column(db.String(5), default='ru')
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
     def to_dict(self):
@@ -30,5 +31,6 @@ class Order(db.Model):
             'photo_url': self.photo_url,
             'status': self.status,
             'printed': self.printed,
+            'language': self.language,
             'created_at': self.created_at.isoformat()
         }

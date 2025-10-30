@@ -1,8 +1,19 @@
 import os
+import sys
 import requests
 from typing import Optional
 from time import sleep
 import logging
+
+# Import translations from bot
+bot_path = os.path.join(os.path.dirname(__file__), '../../bot')
+sys.path.insert(0, bot_path)
+try:
+    from translations import get_text
+except ImportError:
+    # Fallback if translations not available
+    def get_text(key: str, lang: str = 'ru', **kwargs) -> str:
+        return key
 
 logger = logging.getLogger(__name__)
 
@@ -70,14 +81,14 @@ def notify_order_ready(order) -> bool:
     Returns:
         bool: True если уведомление отправлено успешно
     """
+    lang = getattr(order, 'language', 'ru') or 'ru'
     parts_list = "\n".join([f"  • {part}" for part in order.selected_parts])
     
-    message = (
-        f"✅ <b>Заказ №{order.id} готов!</b>\n\n"
-        f"📦 <b>Детали:</b>\n{parts_list}\n\n"
-        f"🚗 <b>VIN:</b> {order.vin}\n"
-        f"📅 <b>Дата заказа:</b> {order.created_at.strftime('%d.%m.%Y %H:%M')}\n\n"
-        f"Забери запчасти у кладовщика! 🔧"
+    message = get_text('order_ready', lang,
+        order_id=order.id,
+        parts=parts_list,
+        vin=order.vin,
+        date=order.created_at.strftime('%d.%m.%Y %H:%M')
     )
     
     success = send_telegram_notification(order.telegram_id, message)

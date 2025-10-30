@@ -156,7 +156,8 @@ def create_order():
             vin=data['vin'],
             selected_parts=data['selected_parts'],
             is_original=data.get('is_original', False),
-            photo_url=data.get('photo_url')
+            photo_url=data.get('photo_url'),
+            language=data.get('language', 'ru')
         )
         
         db.session.add(order)
