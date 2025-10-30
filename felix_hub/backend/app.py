@@ -237,13 +237,15 @@ def update_order(order_id):
             
             if new_status == 'готов':
                 # Печать чека
-                if print_order_with_fallback(order):
-                    order.printed = True
+                print_success = print_order_with_fallback(order)
                 
                 # Уведомление
                 notify_order_ready(order)
-                order.printed = True
-                logger.info(f"Order {order_id} marked as printed automatically")
+                
+                # Отметить как напечатанный если печать была успешной
+                if print_success:
+                    order.printed = True
+                    logger.info(f"Order {order_id} marked as printed automatically")
             elif new_status in ['в работе', 'выдан']:
                 notify_order_status_changed(order, old_status, new_status)
         
