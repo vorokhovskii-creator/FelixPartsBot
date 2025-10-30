@@ -167,6 +167,17 @@ curl -X POST http://localhost:5000/api/printer/test
 
 ## Шаг 7: Production развёртывание
 
+### Render.com (версия Python)
+
+Render использует собственный Python runtime. Если при деплое сервис переключается на 3.13.x, выполните проверку:
+
+1. Убедитесь, что в корне репозитория есть `runtime.txt` с единственной строкой `python-3.11.9`.
+2. Добавьте файл `.python-version` с содержимым `3.11.9` — Render читает его как альтернативный источник версии.
+3. В `render.yaml` поле `pythonVersion` должно быть установлено в `"3.11.9"` и соответствовать `runtime.txt`.
+4. После изменений выполните Manual Deploy → *Clear build cache & deploy* в консоли Render.
+
+> Причина: ранее в `render.yaml` была зафиксирована версия `3.10.12`, из-за чего Render игнорировал обновлённый `runtime.txt` и откатывался к дефолтному окружению Python 3.13.x.
+
 ### Использование PostgreSQL (рекомендуется для production)
 
 1. Установите PostgreSQL
