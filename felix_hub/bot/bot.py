@@ -30,6 +30,75 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+def load_categories_from_api():
+    """Load categories from API with fallback to config.py"""
+    try:
+        response = requests.get(f"{BACKEND_URL}/api/categories", timeout=5)
+        if response.ok:
+            categories = response.json()
+            result = {}
+            for cat in categories:
+                key = f"{cat['icon']} {cat['name_ru']}"
+                result[key] = cat
+            logger.info(f"Loaded {len(result)} categories from API")
+            return result
+        else:
+            logger.warning("Failed to load categories from API, using fallback")
+            return None
+    except Exception as e:
+        logger.warning(f"Error loading categories from API: {e}, using fallback")
+        return None
+
+
+def load_parts_from_api(category_id, lang='ru'):
+    """Load parts for a category from API with fallback to config.py"""
+    try:
+        response = requests.get(f"{BACKEND_URL}/api/parts?category_id={category_id}", timeout=5)
+        if response.ok:
+            parts = response.json()
+            # Filter only common parts
+            common_parts = [p for p in parts if p.get('is_common', True)]
+            # Return translated names
+            result = []
+            for part in common_parts:
+                name_key = f'name_{lang}'
+                name = part.get(name_key) or part.get('name_ru')
+                if name:
+                    result.append(name)
+            logger.info(f"Loaded {len(result)} parts from API for category {category_id}")
+            return result
+        else:
+            logger.warning("Failed to load parts from API, using fallback")
+            return None
+    except Exception as e:
+        logger.warning(f"Error loading parts from API: {e}, using fallback")
+        return None
+
+
+def get_categories_dict():
+    """Get categories dictionary with API first, fallback to config"""
+    api_categories = load_categories_from_api()
+    if api_categories:
+        return api_categories
+    
+    # Fallback to config.py
+    logger.info("Using categories from config.py")
+    return {key: {'name_ru': key} for key in CATEGORIES.keys()}
+
+
+def get_parts_list(category_key, category_data, lang='ru'):
+    """Get parts list for a category with API first, fallback to config"""
+    # If category has an ID, try API
+    if isinstance(category_data, dict) and 'id' in category_data:
+        api_parts = load_parts_from_api(category_data['id'], lang)
+        if api_parts:
+            return api_parts
+    
+    # Fallback to config.py
+    logger.info(f"Using parts from config.py for {category_key}")
+    return CATEGORIES.get(category_key, [])
+
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     context.user_data['mechanic_name'] = user.first_name
@@ -101,9 +170,13 @@ async def select_category(update: Update, context: ContextTypes.DEFAULT_TYPE):
     lang = context.user_data.get('language', 'ru')
     context.user_data['selected_parts'] = []
     
+    # Load categories from API or fallback to config
+    categories = get_categories_dict()
+    context.user_data['categories_cache'] = categories
+    
     keyboard = [
         [InlineKeyboardButton(cat, callback_data=f'cat_{i}')] 
-        for i, cat in enumerate(CATEGORIES.keys())
+        for i, cat in enumerate(categories.keys())
     ]
     keyboard.append([InlineKeyboardButton(get_text('cancel', lang), callback_data='cancel')])
     
@@ -119,8 +192,12 @@ async def select_parts(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.answer()
     
     cat_index = int(query.data.split('_')[1])
-    category = list(CATEGORIES.keys())[cat_index]
-    context.user_data['category'] = category
+    categories = context.user_data.get('categories_cache', get_categories_dict())
+    category_key = list(categories.keys())[cat_index]
+    category_data = categories[category_key]
+    
+    context.user_data['category'] = category_key
+    context.user_data['category_data'] = category_data
     context.user_data['selected_parts'] = []
     
     await show_parts_keyboard(query, context)
@@ -128,9 +205,12 @@ async def select_parts(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def show_parts_keyboard(query, context: ContextTypes.DEFAULT_TYPE):
-    category = context.user_data['category']
-    parts = CATEGORIES[category]
+    category_key = context.user_data['category']
+    category_data = context.user_data.get('category_data', {})
     lang = context.user_data.get('language', 'ru')
+    
+    # Load parts from API or fallback to config
+    parts = get_parts_list(category_key, category_data, lang)
     
     selected = context.user_data.get('selected_parts', [])
     keyboard = []
