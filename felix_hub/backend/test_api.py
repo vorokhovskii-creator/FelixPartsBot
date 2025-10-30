@@ -13,6 +13,7 @@ def test_api():
     app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{db_path}'
     
     with app.app_context():
+        db.drop_all()
         db.create_all()
         
         client = app.test_client()
