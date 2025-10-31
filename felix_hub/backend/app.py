@@ -757,8 +757,21 @@ def setup_telegram_webhook():
         return
     
     try:
-        # Создать application
-        telegram_app = Application.builder().token(TELEGRAM_TOKEN).build()
+        # Создать custom request с таймаутами
+        from telegram.request import HTTPXRequest
+        
+        request_config = HTTPXRequest(
+            connection_pool_size=8,
+            connect_timeout=10.0,
+            read_timeout=10.0,
+            write_timeout=10.0,
+        )
+        
+        # Создать application с таймаутами
+        telegram_app = Application.builder()\
+            .token(TELEGRAM_TOKEN)\
+            .request(request_config)\
+            .build()
         
         # Зарегистрировать все handlers из бота
         setup_handlers(telegram_app)
@@ -792,16 +805,32 @@ def telegram_webhook():
         if not update_data:
             return jsonify({'error': 'No data'}), 400
         
-        # Создать Update объект
-        update = Update.de_json(update_data, telegram_app.bot)
+        # БЫСТРО вернуть 200 OK чтобы Telegram не ждал
+        # Обработку сделать в фоне
+        from threading import Thread
         
-        # Обработать update асинхронно
-        async def process():
-            await telegram_app.process_update(update)
+        def process_update_async():
+            try:
+                from telegram import Update
+                update = Update.de_json(update_data, telegram_app.bot)
+                
+                # Обработать в event loop
+                import asyncio
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                loop.run_until_complete(telegram_app.process_update(update))
+                loop.close()
+            except Exception as e:
+                logger.error(f"❌ Update processing error: {e}")
+                import traceback
+                traceback.print_exc()
         
-        # Запустить в event loop
-        asyncio.run(process())
+        # Запустить в отдельном потоке
+        thread = Thread(target=process_update_async)
+        thread.daemon = True
+        thread.start()
         
+        # Сразу вернуть OK
         return jsonify({'ok': True}), 200
         
     except Exception as e:
