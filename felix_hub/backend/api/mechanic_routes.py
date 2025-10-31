@@ -278,7 +278,7 @@ def add_custom_work(order_id):
         description=data.get('description'),
         price=data.get('price'),
         estimated_time_minutes=data.get('estimated_time_minutes'),
-        added_by_mechanic_id=mechanic_id
+        added_by_id=mechanic_id
     )
     
     db.session.add(work)
@@ -302,7 +302,7 @@ def add_custom_part(order_id):
         part_number=data.get('part_number'),
         price=data.get('price'),
         quantity=data.get('quantity', 1),
-        added_by_mechanic_id=mechanic_id
+        added_by_id=mechanic_id
     )
     
     db.session.add(part)
