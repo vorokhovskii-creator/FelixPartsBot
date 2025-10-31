@@ -79,3 +79,21 @@ export interface MechanicStats {
   completed_today: number;
   time_today_minutes: number;
 }
+
+export interface TimeHistoryStats {
+  total_minutes: number;
+  sessions_count: number;
+  orders_count: number;
+  avg_session: number;
+}
+
+export interface TimeHistoryResponse {
+  stats: TimeHistoryStats;
+  sessions: TimeLog[];
+}
+
+export interface GroupedTimeLog {
+  date: string;
+  sessions: TimeLog[];
+  total_minutes: number;
+}

@@ -337,3 +337,40 @@ def get_mechanic_stats():
     }
     
     return jsonify(stats)
+
+
+@mechanic_bp.route('/time/history', methods=['GET'])
+@require_auth
+def get_mechanic_time_history():
+    """История времени механика с фильтрами"""
+    mechanic_id = get_jwt_identity()
+    start_date = request.args.get('start_date')  # YYYY-MM-DD
+    end_date = request.args.get('end_date')
+    
+    query = db.session.query(TimeLog).filter(
+        TimeLog.mechanic_id == mechanic_id,
+        TimeLog.is_active == False
+    )
+    
+    if start_date:
+        query = query.filter(func.date(TimeLog.started_at) >= start_date)
+    if end_date:
+        query = query.filter(func.date(TimeLog.started_at) <= end_date)
+    
+    time_logs = query.order_by(TimeLog.started_at.desc()).all()
+    
+    # Статистика
+    total_minutes = sum(log.duration_minutes for log in time_logs if log.duration_minutes)
+    sessions_count = len(time_logs)
+    orders_count = len(set(log.order_id for log in time_logs))
+    avg_session = total_minutes / sessions_count if sessions_count > 0 else 0
+    
+    return jsonify({
+        'stats': {
+            'total_minutes': total_minutes,
+            'sessions_count': sessions_count,
+            'orders_count': orders_count,
+            'avg_session': avg_session
+        },
+        'sessions': [log.to_dict() for log in time_logs]
+    })
