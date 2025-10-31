@@ -230,6 +230,7 @@ async def show_parts_keyboard(query, context: ContextTypes.DEFAULT_TYPE):
     
     keyboard.append([InlineKeyboardButton(get_text('add_manual', lang), callback_data='manual')])
     keyboard.append([InlineKeyboardButton(get_text('next', lang), callback_data='next_vin')])
+    keyboard.append([InlineKeyboardButton("◀️ " + get_text('back_to_categories', lang), callback_data='back_to_categories')])
     keyboard.append([InlineKeyboardButton(get_text('cancel', lang), callback_data='cancel')])
     
     await query.message.edit_text(
@@ -303,6 +304,40 @@ async def continue_selection(update: Update, context: ContextTypes.DEFAULT_TYPE)
     return PARTS_SELECTION
 
 
+async def back_to_categories(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Вернуться к списку категорий"""
+    query = update.callback_query
+    await query.answer()
+    
+    lang = context.user_data.get('language', 'ru')
+    
+    # Сохранить выбранные запчасти - они уже в context.user_data['selected_parts']
+    
+    # Загрузить категории
+    categories = context.user_data.get('categories_cache', get_categories_dict())
+    
+    keyboard = [
+        [InlineKeyboardButton(cat, callback_data=f'cat_{i}')] 
+        for i, cat in enumerate(categories.keys())
+    ]
+    keyboard.append([InlineKeyboardButton(get_text('cancel', lang), callback_data='cancel')])
+    
+    await query.message.edit_text(
+        get_text('select_category', lang),
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
+    return CATEGORY
+
+
+async def back_to_parts(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Вернуться к выбору запчастей"""
+    query = update.callback_query
+    await query.answer()
+    
+    await show_parts_keyboard(query, context)
+    return PARTS_SELECTION
+
+
 async def input_vin(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -317,27 +352,61 @@ async def input_vin(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await show_parts_keyboard(query, context)
         return PARTS_SELECTION
     
+    # Добавить кнопку "Назад"
+    keyboard = [
+        [InlineKeyboardButton("◀️ " + get_text('back', lang), callback_data='back_to_parts')]
+    ]
+    
     await query.message.reply_text(
-        get_text('enter_vin', lang)
+        get_text('enter_vin', lang),
+        reply_markup=InlineKeyboardMarkup(keyboard)
     )
     return VIN_INPUT
 
 
 async def process_vin(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Обработать введённый VIN номер"""
     lang = context.user_data.get('language', 'ru')
-    vin = update.message.text.strip()
+    vin = update.message.text.strip().upper()
     
-    if len(vin) < 4:
+    # Логирование для отладки
+    logger.info(f"📝 VIN input received: {vin} from user {update.effective_user.id}")
+    
+    # Валидация
+    if len(vin) < 11:
+        logger.warning(f"VIN too short: {len(vin)} characters")
+        keyboard = [
+            [InlineKeyboardButton("◀️ " + get_text('back', lang), callback_data='back_to_parts')]
+        ]
         await update.message.reply_text(
-            get_text('vin_too_short', lang)
+            get_text('vin_too_short', lang) + "\n\n" + 
+            "VIN должен содержать минимум 11 символов.\n"
+            "Попробуйте ещё раз.",
+            reply_markup=InlineKeyboardMarkup(keyboard)
         )
         return VIN_INPUT
     
+    if len(vin) > 17:
+        logger.warning(f"VIN too long: {len(vin)} characters")
+        keyboard = [
+            [InlineKeyboardButton("◀️ " + get_text('back', lang), callback_data='back_to_parts')]
+        ]
+        await update.message.reply_text(
+            "❌ VIN номер слишком длинный.\n"
+            "VIN обычно содержит 17 символов.\n\n"
+            "Попробуйте ещё раз.",
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
+        return VIN_INPUT
+    
+    # Сохранить VIN
     context.user_data['vin'] = vin
+    logger.info(f"✅ VIN saved: {vin}")
     
     keyboard = [
         [InlineKeyboardButton(get_text('original', lang), callback_data='original_yes')],
-        [InlineKeyboardButton(get_text('not_original', lang), callback_data='original_no')]
+        [InlineKeyboardButton(get_text('not_original', lang), callback_data='original_no')],
+        [InlineKeyboardButton("◀️ " + get_text('back', lang), callback_data='back_to_parts')]
     ]
     
     await update.message.reply_text(
@@ -591,6 +660,23 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return ConversationHandler.END
 
 
+
+async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Обработать ошибки"""
+    logger.error(f"❌ Error: {context.error}")
+    import traceback
+    traceback.print_exc()
+    
+    try:
+        if update and update.effective_message:
+            lang = context.user_data.get('language', 'ru') if context.user_data else 'ru'
+            await update.effective_message.reply_text(
+                "😔 Произошла ошибка. Попробуйте ещё раз или отправьте /start"
+            )
+    except Exception as e:
+        logger.error(f"❌ Error handler failed: {e}")
+
+
 def setup_handlers(application):
     """Зарегистрировать все handlers (для использования в webhook или polling)"""
     
@@ -598,16 +684,26 @@ def setup_handlers(application):
     conv_handler = ConversationHandler(
         entry_points=[CallbackQueryHandler(select_category, pattern='^new_order$')],
         states={
-            CATEGORY: [CallbackQueryHandler(select_parts, pattern='^cat_')],
+            CATEGORY: [
+                CallbackQueryHandler(select_parts, pattern='^cat_'),
+                CallbackQueryHandler(back_to_categories, pattern='^back_to_categories$')
+            ],
             PARTS_SELECTION: [
                 CallbackQueryHandler(toggle_part, pattern='^part_'),
                 CallbackQueryHandler(input_vin, pattern='^next_vin$'),
                 CallbackQueryHandler(manual_input, pattern='^manual$'),
                 CallbackQueryHandler(continue_selection, pattern='^continue_selection$'),
+                CallbackQueryHandler(back_to_categories, pattern='^back_to_categories$'),
                 MessageHandler(filters.TEXT & ~filters.COMMAND, add_manual_part)
             ],
-            VIN_INPUT: [MessageHandler(filters.TEXT & ~filters.COMMAND, process_vin)],
-            ORIGINAL_CHOICE: [CallbackQueryHandler(original_choice, pattern='^original_')],
+            VIN_INPUT: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, process_vin),
+                CallbackQueryHandler(back_to_parts, pattern='^back_to_parts$')
+            ],
+            ORIGINAL_CHOICE: [
+                CallbackQueryHandler(original_choice, pattern='^original_'),
+                CallbackQueryHandler(back_to_parts, pattern='^back_to_parts$')
+            ],
             PHOTO_UPLOAD: [
                 MessageHandler(filters.PHOTO, upload_photo),
                 CallbackQueryHandler(request_photo, pattern='^upload_photo$'),
@@ -615,7 +711,10 @@ def setup_handlers(application):
             ],
             CONFIRMATION: [CallbackQueryHandler(confirm_order, pattern='^confirm$')]
         },
-        fallbacks=[CallbackQueryHandler(cancel, pattern='^cancel$')]
+        fallbacks=[CallbackQueryHandler(cancel, pattern='^cancel$')],
+        conversation_timeout=300,  # 5 минут
+        name="order_conversation",
+        persistent=False
     )
     
     # Зарегистрировать все handlers
@@ -625,6 +724,9 @@ def setup_handlers(application):
     application.add_handler(CallbackQueryHandler(help_command, pattern='^help$'))
     application.add_handler(CallbackQueryHandler(select_language, pattern='^change_language$'))
     application.add_handler(CallbackQueryHandler(set_language, pattern='^lang_'))
+    
+    # Зарегистрировать error handler
+    application.add_error_handler(error_handler)
     
     logger.info("✅ Bot handlers registered")
     return application

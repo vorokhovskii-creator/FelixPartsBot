@@ -59,6 +59,16 @@ TRANSLATIONS = {
         'he': '❌ ביטול',
         'en': '❌ Cancel'
     },
+    'back': {
+        'ru': 'Назад',
+        'he': 'חזור',
+        'en': 'Back'
+    },
+    'back_to_categories': {
+        'ru': 'К категориям',
+        'he': 'לקטגוריות',
+        'en': 'To categories'
+    },
     'enter_vin': {
         'ru': '🚗 Введи VIN автомобиля (минимум 4 символа):',
         'he': '🚗 הכנס VIN של הרכב (לפחות 4 תווים):',
