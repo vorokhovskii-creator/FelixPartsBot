@@ -15,7 +15,8 @@ from threading import Event, Lock, Thread
 # Add backend directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from models import db, Order, Category, Part
+from models import (db, Order, Category, Part, Mechanic, OrderComment, 
+                    TimeLog, CustomWorkItem, CustomPartItem, WorkOrderAssignment)
 from utils.notifier import notify_order_ready, notify_order_status_changed
 from utils.printer import print_order_with_fallback, print_test_receipt
 
@@ -52,7 +53,12 @@ db.init_app(app)
 
 # CORS configuration for production
 ALLOWED_ORIGINS = os.getenv('ALLOWED_ORIGINS', '*').split(',')
-CORS(app, origins=ALLOWED_ORIGINS)
+CORS(app, origins=ALLOWED_ORIGINS, 
+     resources={r"/api/*": {
+         "methods": ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+         "allow_headers": ["Content-Type", "Authorization"],
+         "expose_headers": ["Content-Type", "Authorization"]
+     }})
 
 # Setup logging early
 logging.basicConfig(
@@ -93,6 +99,11 @@ def init_database():
 
 # Инициализировать БД при загрузке модуля
 init_database()
+
+
+# Регистрация mechanic API routes
+from api.mechanic_routes import mechanic_bp
+app.register_blueprint(mechanic_bp)
 
 
 @app.errorhandler(400)
