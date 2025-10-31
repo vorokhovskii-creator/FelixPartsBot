@@ -1,0 +1,17 @@
+{
+  "name": "Felix Hub - Механик",
+  "short_name": "Felix Hub",
+  "description": "Система управления заказами для механиков",
+  "start_url": "/mechanic/login",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#3b82f6",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/vite.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}

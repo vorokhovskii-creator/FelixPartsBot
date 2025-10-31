@@ -10,6 +10,21 @@ export default defineConfig({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'react-vendor': ['react', 'react-dom', 'react-router-dom'],
+          'ui-vendor': ['lucide-react', '@radix-ui/react-label', '@radix-ui/react-slot', '@radix-ui/react-tabs'],
+          'form-vendor': ['react-hook-form', '@hookform/resolvers', 'zod'],
+          'utils': ['axios', 'date-fns', 'sonner', 'clsx', 'tailwind-merge'],
+        },
+      },
+    },
+    chunkSizeWarningLimit: 600,
+    sourcemap: false,
+    minify: 'esbuild',
+  },
   server: {
     port: 3000,
     proxy: {

@@ -4,7 +4,19 @@ import { Button } from '@/components/ui/button';
 
 export default function MechanicLayout() {
   const navigate = useNavigate();
-  const mechanic = JSON.parse(localStorage.getItem('mechanic') || '{}');
+  
+  const getMechanic = () => {
+    try {
+      const mechanicData = localStorage.getItem('mechanic');
+      if (!mechanicData) return { name: 'Механик' };
+      return JSON.parse(mechanicData);
+    } catch (error) {
+      console.error('Error parsing mechanic data:', error);
+      return { name: 'Механик' };
+    }
+  };
+  
+  const mechanic = getMechanic();
 
   const handleLogout = () => {
     localStorage.removeItem('mechanic_token');
