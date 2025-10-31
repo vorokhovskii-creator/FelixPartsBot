@@ -15,7 +15,10 @@ from threading import Event, Lock, Thread
 # Add backend directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from models import db, Order, Category, Part
+from models import (
+    db, Order, Category, Part, Mechanic, WorkOrderAssignment,
+    OrderComment, TimeLog, CustomWorkItem, CustomPartItem
+)
 from utils.notifier import notify_order_ready, notify_order_status_changed
 from utils.printer import print_order_with_fallback, print_test_receipt
 

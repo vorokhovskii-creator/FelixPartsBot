@@ -6,6 +6,7 @@ python-dotenv==1.0.0
 
 # Database
 psycopg2-binary==2.9.9
+bcrypt==4.1.1
 
 # Telegram Bot (with webhook support)
 python-telegram-bot[webhooks]==21.0
