@@ -1,133 +1,156 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { toast } from 'sonner';
-import { AxiosError } from 'axios';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Clock, CheckCircle, Wrench } from 'lucide-react';
 import api from '@/lib/api';
-import type { Order, Mechanic } from '@/types';
-import { format } from 'date-fns';
-import { ru } from 'date-fns/locale/ru';
+import type { Order, MechanicStats } from '@/types';
 
 export default function MechanicDashboard() {
-  const navigate = useNavigate();
   const [orders, setOrders] = useState<Order[]>([]);
-  const [mechanic, setMechanic] = useState<Mechanic | null>(null);
+  const [stats, setStats] = useState<MechanicStats | null>(null);
+  const [filter, setFilter] = useState<string>('all');
   const [loading, setLoading] = useState(true);
+  const navigate = useNavigate();
 
-  useEffect(() => {
-    const mechanicData = localStorage.getItem('mechanic');
-    if (!mechanicData) {
-      navigate('/mechanic/login');
-      return;
-    }
-    setMechanic(JSON.parse(mechanicData));
-    fetchOrders();
-  }, [navigate]);
-
-  const fetchOrders = async () => {
+  const fetchStats = useCallback(async () => {
     try {
-      const response = await api.get<Order[]>('/mechanic/orders');
+      const response = await api.get('/mechanic/stats');
+      setStats(response.data);
+    } catch (error) {
+      console.error('Error fetching stats:', error);
+    }
+  }, []);
+
+  const fetchOrders = useCallback(async () => {
+    setLoading(true);
+    try {
+      const params = filter !== 'all' ? { status: filter } : {};
+      const response = await api.get('/mechanic/orders', { params });
       setOrders(response.data);
     } catch (error) {
-      if (error instanceof AxiosError && error.response?.data?.message) {
-        toast.error(error.response.data.message);
-      } else {
-        toast.error('Ошибка загрузки заказов');
-      }
+      console.error('Error fetching orders:', error);
     } finally {
       setLoading(false);
     }
-  };
+  }, [filter]);
 
-  const handleLogout = () => {
-    localStorage.removeItem('mechanic_token');
-    localStorage.removeItem('mechanic');
-    navigate('/mechanic/login');
-  };
+  useEffect(() => {
+    fetchStats();
+    fetchOrders();
+  }, [fetchStats, fetchOrders]);
 
-  const getStatusVariant = (status: Order['status']) => {
-    switch (status) {
-      case 'новый':
-        return 'default';
-      case 'в работе':
-        return 'secondary';
-      case 'готов':
-        return 'outline';
-      case 'выдан':
-        return 'outline';
-      default:
-        return 'default';
-    }
+  const getStatusColor = (status: string) => {
+    const colors = {
+      'новый': 'bg-blue-100 text-blue-800',
+      'в работе': 'bg-yellow-100 text-yellow-800',
+      'на паузе': 'bg-gray-100 text-gray-800',
+      'завершен': 'bg-green-100 text-green-800',
+    };
+    return colors[status as keyof typeof colors] || '';
   };
-
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <p>Загрузка...</p>
-      </div>
-    );
-  }
 
   return (
-    <div className="min-h-screen bg-background">
-      <header className="border-b">
-        <div className="container mx-auto px-4 py-4 flex justify-between items-center">
-          <h1 className="text-2xl font-bold">Felix Hub - Механик</h1>
-          <Button variant="outline" onClick={handleLogout}>
-            Выход
-          </Button>
-        </div>
-      </header>
+    <div className="container max-w-4xl mx-auto px-4 py-6">
+      {/* Статистика */}
+      <div className="grid grid-cols-3 gap-3 mb-6">
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex flex-col items-center text-center">
+              <Wrench className="h-8 w-8 text-blue-600 mb-2" />
+              <p className="text-2xl font-bold">{stats?.active_orders || 0}</p>
+              <p className="text-xs text-gray-600">В работе</p>
+            </div>
+          </CardContent>
+        </Card>
 
-      <main className="container mx-auto px-4 py-6">
-        {mechanic && (
-          <Card className="mb-6">
-            <CardHeader>
-              <CardTitle>Добро пожаловать, {mechanic.name}!</CardTitle>
-              <CardDescription>Ваши заказы</CardDescription>
-            </CardHeader>
-          </Card>
-        )}
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex flex-col items-center text-center">
+              <CheckCircle className="h-8 w-8 text-green-600 mb-2" />
+              <p className="text-2xl font-bold">{stats?.completed_today || 0}</p>
+              <p className="text-xs text-gray-600">Сегодня</p>
+            </div>
+          </CardContent>
+        </Card>
 
-        <div className="space-y-4">
-          {orders.length === 0 ? (
-            <Card>
-              <CardContent className="pt-6">
-                <p className="text-center text-muted-foreground">Нет активных заказов</p>
-              </CardContent>
-            </Card>
-          ) : (
-            orders.map((order) => (
-              <Card key={order.id} className="cursor-pointer hover:bg-accent/50 transition-colors"
-                onClick={() => navigate(`/mechanic/orders/${order.id}`)}>
-                <CardHeader>
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <CardTitle className="text-lg">Заказ #{order.id}</CardTitle>
-                      <CardDescription>VIN: {order.vin}</CardDescription>
-                    </div>
-                    <Badge variant={getStatusVariant(order.status)}>
-                      {order.status}
-                    </Badge>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-2 text-sm">
-                    <p><strong>Категория:</strong> {order.category}</p>
-                    <p><strong>Деталь:</strong> {order.part_name}</p>
-                    <p><strong>Тип:</strong> {order.part_type}</p>
-                    <p className="text-muted-foreground">
-                      {format(new Date(order.created_at), 'dd MMMM yyyy, HH:mm', { locale: ru })}
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex flex-col items-center text-center">
+              <Clock className="h-8 w-8 text-orange-600 mb-2" />
+              <p className="text-2xl font-bold">
+                {Math.floor((stats?.time_today_minutes || 0) / 60)}ч
+              </p>
+              <p className="text-xs text-gray-600">Времени</p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Фильтры */}
+      <Tabs value={filter} onValueChange={setFilter} className="mb-6">
+        <TabsList className="grid w-full grid-cols-4">
+          <TabsTrigger value="all">Все</TabsTrigger>
+          <TabsTrigger value="новый">Новые</TabsTrigger>
+          <TabsTrigger value="в работе">В работе</TabsTrigger>
+          <TabsTrigger value="завершен">Готовые</TabsTrigger>
+        </TabsList>
+      </Tabs>
+
+      {/* Список заказов */}
+      <div className="space-y-3">
+        {loading ? (
+          <div className="text-center py-8 text-gray-500">Загрузка...</div>
+        ) : orders.length === 0 ? (
+          <div className="text-center py-8 text-gray-500">
+            Нет заказов
+          </div>
+        ) : (
+          orders.map((order) => (
+            <Card
+              key={order.id}
+              className="cursor-pointer hover:shadow-md transition-shadow"
+              onClick={() => navigate(`/mechanic/orders/${order.id}`)}
+            >
+              <CardContent className="p-4">
+                <div className="flex items-start justify-between mb-2">
+                  <div>
+                    <h3 className="font-semibold text-lg">
+                      Заказ #{order.id}
+                    </h3>
+                    <p className="text-sm text-gray-600">
+                      {order.vin || 'VIN не указан'}
                     </p>
                   </div>
-                </CardContent>
-              </Card>
-            ))
-          )}
-        </div>
-      </main>
+                  <Badge className={getStatusColor(order.work_status)}>
+                    {order.work_status}
+                  </Badge>
+                </div>
+
+                <div className="space-y-1">
+                  <p className="text-sm">
+                    <span className="font-medium">Категория:</span> {order.category}
+                  </p>
+                  <p className="text-sm">
+                    <span className="font-medium">Запчасть:</span> {order.part_name}
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    {new Date(order.created_at).toLocaleString('ru-RU')}
+                  </p>
+                </div>
+
+                {order.total_time_minutes > 0 && (
+                  <div className="mt-2 flex items-center text-sm text-gray-600">
+                    <Clock className="h-4 w-4 mr-1" />
+                    {Math.floor(order.total_time_minutes / 60)}ч {order.total_time_minutes % 60}м
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          ))
+        )}
+      </div>
     </div>
   );
 }

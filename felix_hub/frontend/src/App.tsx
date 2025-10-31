@@ -1,5 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'sonner';
+import ProtectedRoute from './components/ProtectedRoute';
+import MechanicLayout from './components/mechanic/MechanicLayout';
 import MechanicLogin from './pages/MechanicLogin';
 import MechanicDashboard from './pages/MechanicDashboard';
 import OrderDetails from './pages/OrderDetails';
@@ -10,8 +12,19 @@ function App() {
       <Routes>
         <Route path="/" element={<Navigate to="/mechanic/login" replace />} />
         <Route path="/mechanic/login" element={<MechanicLogin />} />
-        <Route path="/mechanic/dashboard" element={<MechanicDashboard />} />
-        <Route path="/mechanic/orders/:id" element={<OrderDetails />} />
+        <Route
+          path="/mechanic"
+          element={
+            <ProtectedRoute>
+              <MechanicLayout />
+            </ProtectedRoute>
+          }
+        >
+          <Route path="dashboard" element={<MechanicDashboard />} />
+          <Route path="orders/:id" element={<OrderDetails />} />
+          <Route path="time" element={<div className="p-4 text-center">Страница времени (в разработке)</div>} />
+          <Route path="profile" element={<div className="p-4 text-center">Профиль (в разработке)</div>} />
+        </Route>
       </Routes>
       <Toaster position="top-center" />
     </BrowserRouter>
