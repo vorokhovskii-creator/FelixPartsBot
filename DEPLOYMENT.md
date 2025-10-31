@@ -167,7 +167,92 @@ curl -X POST http://localhost:5000/api/printer/test
 
 ## Шаг 7: Production развёртывание
 
-### Render.com (версия Python)
+### Render.com - Mechanics Frontend (Static Site)
+
+Фронтенд механиков деплоится как отдельный Static Site на Render.com и подключается к backend API.
+
+#### Автоматический деплой через render.yaml
+
+В репозитории уже настроен `render.yaml` для автоматического деплоя фронтенда. При пуше в ветку `main` Render автоматически:
+1. Установит зависимости (`npm ci`)
+2. Соберёт production build (`npm run build`)
+3. Опубликует статический сайт из `felix_hub/frontend/dist`
+
+#### Конфигурация в render.yaml:
+```yaml
+services:
+  - type: web
+    name: felix-hub-mechanics-frontend
+    env: static
+    branch: main
+    buildCommand: "cd felix_hub/frontend && npm ci && npm run build"
+    staticPublishPath: felix_hub/frontend/dist
+    autoDeploy: true
+    envVars:
+      - key: VITE_API_URL
+        value: https://felix-hub-backend.onrender.com/api
+```
+
+#### Ручное создание Static Site через Render Dashboard:
+
+Если нужно создать отдельно через веб-интерфейс:
+
+1. **New → Static Site**
+2. **Source**: подключите GitHub репозиторий FelixPartsBot
+3. **Settings**:
+   - Name: `felix-hub-mechanics-frontend`
+   - Branch: `main`
+   - Build Command: `cd felix_hub/frontend && npm ci && npm run build`
+   - Publish Directory: `felix_hub/frontend/dist`
+   - Auto-Deploy: Yes
+4. **Environment Variables**:
+   - Key: `VITE_API_URL`
+   - Value: `https://felix-hub-backend.onrender.com/api`
+
+#### Проверка деплоя:
+
+1. Откройте URL static site (например, `https://felix-hub-mechanics-frontend.onrender.com`)
+2. Перейдите на `/mechanic/login`
+3. Проверьте:
+   - Страница загружается без ошибок
+   - В DevTools → Network все запросы идут на `https://felix-hub-backend.onrender.com/api`
+   - Нет CORS ошибок
+   - Можно залогиниться и работать с заказами
+
+#### Smoke-тест функциональности:
+
+- ✅ Login → Dashboard
+- ✅ Просмотр списка заказов
+- ✅ Открытие деталей заказа
+- ✅ Изменение статуса заказа
+- ✅ Добавление комментария
+- ✅ Time tracker (начать/остановить работу)
+- ✅ Консоль браузера без ошибок
+
+#### CORS настройки на Backend
+
+Если возникают CORS ошибки, убедитесь что на backend настроен правильный origin:
+
+```python
+# felix_hub/backend/app.py
+CORS(app, resources={
+    r"/api/*": {
+        "origins": [
+            "https://felix-hub-mechanics-frontend.onrender.com",
+            "http://localhost:5173"  # для локальной разработки
+        ],
+        "allow_headers": ["Content-Type", "Authorization"],
+        "methods": ["GET", "POST", "PATCH", "DELETE"]
+    }
+})
+```
+
+Или через переменную окружения `FRONTEND_ORIGIN` в Render:
+```
+FRONTEND_ORIGIN=https://felix-hub-mechanics-frontend.onrender.com
+```
+
+### Render.com - Backend (версия Python)
 
 Render использует собственный Python runtime. Если при деплое сервис переключается на 3.13.x, выполните проверку:
 

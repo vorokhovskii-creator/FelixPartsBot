@@ -1,4 +1,5 @@
-import { Component, ErrorInfo, ReactNode } from 'react';
+import { Component } from 'react';
+import type { ErrorInfo, ReactNode } from 'react';
 import { AlertCircle, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -69,7 +70,7 @@ class ErrorBoundary extends Component<Props, State> {
                 Мы уже получили информацию об ошибке.
               </p>
 
-              {process.env.NODE_ENV === 'development' && this.state.error && (
+              {import.meta.env.MODE === 'development' && this.state.error && (
                 <details className="bg-gray-100 rounded-lg p-4 text-sm">
                   <summary className="font-semibold cursor-pointer mb-2">
                     Детали ошибки (только в режиме разработки)
