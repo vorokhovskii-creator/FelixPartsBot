@@ -5,6 +5,7 @@ import MechanicLayout from './components/mechanic/MechanicLayout';
 import MechanicLogin from './pages/MechanicLogin';
 import MechanicDashboard from './pages/MechanicDashboard';
 import OrderDetails from './pages/OrderDetails';
+import MechanicTimeHistory from './pages/MechanicTimeHistory';
 
 function App() {
   return (
@@ -22,7 +23,7 @@ function App() {
         >
           <Route path="dashboard" element={<MechanicDashboard />} />
           <Route path="orders/:id" element={<OrderDetails />} />
-          <Route path="time" element={<div className="p-4 text-center">Страница времени (в разработке)</div>} />
+          <Route path="time" element={<MechanicTimeHistory />} />
           <Route path="profile" element={<div className="p-4 text-center">Профиль (в разработке)</div>} />
         </Route>
       </Routes>
