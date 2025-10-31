@@ -10,18 +10,20 @@ import OriginalitySelector from '@/components/mechanic/order-wizard/OriginalityS
 import PhotoUpload from '@/components/mechanic/order-wizard/PhotoUpload';
 import OrderConfirmation from '@/components/mechanic/order-wizard/OrderConfirmation';
 
-enum WizardStep {
-  CATEGORY = 1,
-  PARTS = 2,
-  VIN = 3,
-  ORIGINALITY = 4,
-  PHOTO = 5,
-  CONFIRMATION = 6,
-}
+const WIZARD_STEPS = {
+  CATEGORY: 1,
+  PARTS: 2,
+  VIN: 3,
+  ORIGINALITY: 4,
+  PHOTO: 5,
+  CONFIRMATION: 6,
+} as const;
+
+type WizardStep = typeof WIZARD_STEPS[keyof typeof WIZARD_STEPS];
 
 export default function NewOrder() {
   const navigate = useNavigate();
-  const [step, setStep] = useState<WizardStep>(WizardStep.CATEGORY);
+  const [step, setStep] = useState<WizardStep>(WIZARD_STEPS.CATEGORY);
   
   const [categoryId, setCategoryId] = useState<number | null>(null);
   const [selectedPartIds, setSelectedPartIds] = useState<number[]>([]);
@@ -83,7 +85,7 @@ export default function NewOrder() {
       </div>
 
       <div className="container max-w-2xl mx-auto px-4 py-6">
-        {step === WizardStep.CATEGORY && (
+        {step === WIZARD_STEPS.CATEGORY && (
           <CategorySelector
             selected={categoryId}
             onSelect={(id) => {
@@ -93,7 +95,7 @@ export default function NewOrder() {
           />
         )}
 
-        {step === WizardStep.PARTS && (
+        {step === WIZARD_STEPS.PARTS && (
           <PartsSelector
             categoryId={categoryId!}
             selectedIds={selectedPartIds}
@@ -103,7 +105,7 @@ export default function NewOrder() {
           />
         )}
 
-        {step === WizardStep.VIN && (
+        {step === WIZARD_STEPS.VIN && (
           <VinInput
             value={vin}
             onChange={setVin}
@@ -112,7 +114,7 @@ export default function NewOrder() {
           />
         )}
 
-        {step === WizardStep.ORIGINALITY && (
+        {step === WIZARD_STEPS.ORIGINALITY && (
           <OriginalitySelector
             selected={partType}
             onSelect={(type) => {
@@ -123,7 +125,7 @@ export default function NewOrder() {
           />
         )}
 
-        {step === WizardStep.PHOTO && (
+        {step === WIZARD_STEPS.PHOTO && (
           <PhotoUpload
             photo={photo}
             onUpload={setPhoto}
@@ -132,7 +134,7 @@ export default function NewOrder() {
           />
         )}
 
-        {step === WizardStep.CONFIRMATION && (
+        {step === WIZARD_STEPS.CONFIRMATION && (
           <OrderConfirmation
             categoryId={categoryId!}
             partIds={selectedPartIds}
