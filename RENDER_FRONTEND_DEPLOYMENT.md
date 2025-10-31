@@ -175,13 +175,29 @@ npm run build
 
 ### Routes Not Working (404)
 
-**Check**:
-- All client-side routes should be handled by `index.html`
-- Render static sites automatically handle SPAs
+**Issue**: Direct access or page refresh on routes like `/mechanic/dashboard` returns 404.
 
-**Fix**: Render should handle this automatically, but verify in the Render dashboard that:
+**Root Cause**: SPA routing requires the server to serve `index.html` for all routes, not just the root.
+
+**Fix Applied**:
+1. Created `felix_hub/frontend/public/_redirects` file with:
+   ```
+   /*    /index.html   200
+   ```
+
+2. Added route configuration to `render.yaml`:
+   ```yaml
+   routes:
+     - type: rewrite
+       source: /*
+       destination: /index.html
+   ```
+
+**Verify**:
 - Publish directory is `felix_hub/frontend/dist`
 - `index.html` exists in the dist directory
+- `_redirects` file is copied to dist directory during build
+- All routes work with direct access and page refresh
 
 ## Build Output
 
@@ -190,6 +206,7 @@ The production build creates:
 ```
 felix_hub/frontend/dist/
 ├── index.html              # Entry point
+├── _redirects             # SPA routing configuration
 ├── vite.svg               # Favicon
 └── assets/
     ├── index-[hash].js    # JavaScript bundle (~500KB)
