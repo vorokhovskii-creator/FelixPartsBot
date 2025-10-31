@@ -1,13 +1,14 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
+import { AxiosError } from 'axios';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import api from '@/lib/api';
 import type { Order, Mechanic } from '@/types';
 import { format } from 'date-fns';
-import { ru } from 'date-fns/locale';
+import { ru } from 'date-fns/locale/ru';
 
 export default function MechanicDashboard() {
   const navigate = useNavigate();
@@ -16,7 +17,7 @@ export default function MechanicDashboard() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const mechanicData = localStorage.getItem('mechanic_data');
+    const mechanicData = localStorage.getItem('mechanic');
     if (!mechanicData) {
       navigate('/mechanic/login');
       return;
@@ -29,8 +30,12 @@ export default function MechanicDashboard() {
     try {
       const response = await api.get<Order[]>('/mechanic/orders');
       setOrders(response.data);
-    } catch (error: any) {
-      toast.error(error.response?.data?.message || 'Ошибка загрузки заказов');
+    } catch (error) {
+      if (error instanceof AxiosError && error.response?.data?.message) {
+        toast.error(error.response.data.message);
+      } else {
+        toast.error('Ошибка загрузки заказов');
+      }
     } finally {
       setLoading(false);
     }
@@ -38,7 +43,7 @@ export default function MechanicDashboard() {
 
   const handleLogout = () => {
     localStorage.removeItem('mechanic_token');
-    localStorage.removeItem('mechanic_data');
+    localStorage.removeItem('mechanic');
     navigate('/mechanic/login');
   };
 
