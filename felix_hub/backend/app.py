@@ -6,11 +6,12 @@ from flask import Flask, request, jsonify, render_template, send_file
 from flask_cors import CORS
 from dotenv import load_dotenv
 import pandas as pd
-from sqlalchemy import text
+from sqlalchemy import text, func
 import asyncio
 import time
 from collections import OrderedDict
 from threading import Event, Lock, Thread
+from werkzeug.security import generate_password_hash
 
 # Add backend directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -743,6 +744,254 @@ def delete_part(part_id):
         db.session.rollback()
         logger.error(f"Error deleting part {part_id}: {e}")
         return jsonify({'error': 'Ошибка удаления детали'}), 500
+
+
+# === Управление механиками ===
+
+@app.route('/api/admin/mechanics', methods=['GET'])
+def get_mechanics():
+    """Список всех механиков"""
+    try:
+        mechanics = Mechanic.query.order_by(Mechanic.name).all()
+        return jsonify([m.to_dict() for m in mechanics]), 200
+    except Exception as e:
+        logger.error(f"Error fetching mechanics: {e}")
+        return jsonify({'error': 'Ошибка получения механиков'}), 500
+
+
+@app.route('/api/admin/mechanics', methods=['POST'])
+def create_mechanic():
+    """Создать нового механика"""
+    try:
+        data = request.get_json()
+        
+        if not data:
+            return jsonify({'error': 'Невалидный JSON'}), 400
+        
+        # Проверить обязательные поля
+        required_fields = ['name', 'email', 'password']
+        for field in required_fields:
+            if field not in data:
+                return jsonify({'error': f'Отсутствует обязательное поле: {field}'}), 400
+        
+        # Проверить email
+        existing = Mechanic.query.filter_by(email=data['email']).first()
+        if existing:
+            return jsonify({'error': 'Email уже используется'}), 400
+        
+        # Hash password
+        password_hash = generate_password_hash(data['password'])
+        
+        mechanic = Mechanic(
+            name=data['name'],
+            email=data['email'],
+            password_hash=password_hash,
+            phone=data.get('phone'),
+            specialty=data.get('specialty'),
+            telegram_id=data.get('telegram_id'),
+            active=True
+        )
+        
+        db.session.add(mechanic)
+        db.session.commit()
+        
+        logger.info(f"Mechanic created: ID={mechanic.id}, name={mechanic.name}")
+        
+        # TODO: Отправить email с данными для входа
+        
+        return jsonify(mechanic.to_dict()), 201
+        
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error creating mechanic: {e}")
+        return jsonify({'error': 'Ошибка создания механика'}), 500
+
+
+@app.route('/api/admin/mechanics/<int:mechanic_id>', methods=['PATCH'])
+def update_mechanic(mechanic_id):
+    """Обновить механика"""
+    try:
+        mechanic = Mechanic.query.get(mechanic_id)
+        if not mechanic:
+            return jsonify({'error': 'Механик не найден'}), 404
+        
+        data = request.get_json()
+        
+        if not data:
+            return jsonify({'error': 'Невалидный JSON'}), 400
+        
+        if 'name' in data:
+            mechanic.name = data['name']
+        if 'phone' in data:
+            mechanic.phone = data['phone']
+        if 'specialty' in data:
+            mechanic.specialty = data['specialty']
+        if 'active' in data:
+            mechanic.active = data['active']
+        if 'password' in data and data['password']:
+            mechanic.password_hash = generate_password_hash(data['password'])
+        
+        mechanic.updated_at = datetime.utcnow()
+        db.session.commit()
+        
+        logger.info(f"Mechanic updated: ID={mechanic_id}")
+        
+        return jsonify(mechanic.to_dict()), 200
+        
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error updating mechanic {mechanic_id}: {e}")
+        return jsonify({'error': 'Ошибка обновления механика'}), 500
+
+
+@app.route('/api/admin/mechanics/<int:mechanic_id>/stats', methods=['GET'])
+def get_mechanic_stats(mechanic_id):
+    """Статистика механика"""
+    try:
+        total_completed = Order.query.filter(
+            Order.assigned_mechanic_id == mechanic_id,
+            Order.work_status == 'завершен'
+        ).count()
+        
+        active_orders = Order.query.filter(
+            Order.assigned_mechanic_id == mechanic_id,
+            Order.work_status.in_(['в работе', 'на паузе'])
+        ).count()
+        
+        total_time = db.session.query(func.sum(TimeLog.duration_minutes)).filter(
+            TimeLog.mechanic_id == mechanic_id
+        ).scalar() or 0
+        
+        avg_time = db.session.query(func.avg(Order.total_time_minutes)).filter(
+            Order.assigned_mechanic_id == mechanic_id,
+            Order.work_status == 'завершен'
+        ).scalar() or 0
+        
+        return jsonify({
+            'total_completed': total_completed,
+            'active_orders': active_orders,
+            'total_time_minutes': int(total_time),
+            'avg_time_per_order': round(float(avg_time), 1)
+        }), 200
+        
+    except Exception as e:
+        logger.error(f"Error fetching mechanic stats {mechanic_id}: {e}")
+        return jsonify({'error': 'Ошибка получения статистики механика'}), 500
+
+
+# === Назначение заказов ===
+
+@app.route('/api/admin/orders/<int:order_id>/assign', methods=['POST'])
+def assign_order(order_id):
+    """Назначить заказ на механика"""
+    try:
+        data = request.get_json()
+        
+        if not data or 'mechanic_id' not in data:
+            return jsonify({'error': 'Отсутствует поле mechanic_id'}), 400
+        
+        mechanic_id = data['mechanic_id']
+        
+        order = Order.query.get(order_id)
+        mechanic = Mechanic.query.get(mechanic_id)
+        
+        if not order:
+            return jsonify({'error': 'Заказ не найден'}), 404
+        
+        if not mechanic:
+            return jsonify({'error': 'Механик не найден'}), 404
+        
+        # Проверить активность механика
+        if not mechanic.active:
+            return jsonify({'error': 'Механик неактивен'}), 400
+        
+        # Обновить заказ
+        order.assigned_mechanic_id = mechanic_id
+        if order.work_status == 'новый' or not order.work_status:
+            order.work_status = 'назначен'
+        
+        # Создать запись назначения
+        assignment = WorkOrderAssignment(
+            order_id=order_id,
+            mechanic_id=mechanic_id,
+            notes=data.get('notes'),
+            status='assigned'
+        )
+        
+        db.session.add(assignment)
+        db.session.commit()
+        
+        logger.info(f"Order {order_id} assigned to mechanic {mechanic_id}")
+        
+        # TODO: Отправить уведомление механику
+        
+        return jsonify({
+            'order': order.to_dict(),
+            'assignment': assignment.to_dict()
+        }), 200
+        
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error assigning order {order_id}: {e}")
+        return jsonify({'error': 'Ошибка назначения заказа'}), 500
+
+
+@app.route('/api/admin/orders/<int:order_id>/reassign', methods=['POST'])
+def reassign_order(order_id):
+    """Переназначить заказ"""
+    try:
+        data = request.get_json()
+        
+        if not data or 'mechanic_id' not in data:
+            return jsonify({'error': 'Отсутствует поле mechanic_id'}), 400
+        
+        new_mechanic_id = data['mechanic_id']
+        
+        order = Order.query.get(order_id)
+        if not order:
+            return jsonify({'error': 'Заказ не найден'}), 404
+        
+        new_mechanic = Mechanic.query.get(new_mechanic_id)
+        if not new_mechanic:
+            return jsonify({'error': 'Механик не найден'}), 404
+        
+        # Проверить активность механика
+        if not new_mechanic.active:
+            return jsonify({'error': 'Механик неактивен'}), 400
+        
+        # Закрыть старое назначение если есть
+        if order.assigned_mechanic_id:
+            old_assignment = WorkOrderAssignment.query.filter_by(
+                order_id=order_id,
+                mechanic_id=order.assigned_mechanic_id,
+                status='assigned'
+            ).first()
+            
+            if old_assignment:
+                old_assignment.status = 'reassigned'
+        
+        # Создать новое назначение
+        assignment = WorkOrderAssignment(
+            order_id=order_id,
+            mechanic_id=new_mechanic_id,
+            notes=data.get('notes'),
+            status='assigned'
+        )
+        
+        order.assigned_mechanic_id = new_mechanic_id
+        order.work_status = 'назначен'
+        
+        db.session.add(assignment)
+        db.session.commit()
+        
+        logger.info(f"Order {order_id} reassigned to mechanic {new_mechanic_id}")
+        
+        return jsonify(order.to_dict()), 200
+        
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error reassigning order {order_id}: {e}")
+        return jsonify({'error': 'Ошибка переназначения заказа'}), 500
 
 
 # === Telegram Webhook ===
