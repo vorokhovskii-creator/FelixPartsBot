@@ -1,5 +1,6 @@
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
+from sqlalchemy import Index
 
 db = SQLAlchemy()
 
@@ -59,21 +60,33 @@ class Mechanic(db.Model):
     email = db.Column(db.String(120), unique=True, nullable=False)
     password_hash = db.Column(db.String(255), nullable=False)
     name = db.Column(db.String(120), nullable=False)
+    phone = db.Column(db.String(50), nullable=True)
+    telegram_id = db.Column(db.String(50), nullable=True)
+    telegram_username = db.Column(db.String(120), nullable=True)
+    specialty = db.Column(db.String(120), nullable=True)
     active = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
-    orders = db.relationship('Order', backref='assigned_mechanic', lazy=True)
-    comments = db.relationship('OrderComment', backref='mechanic', lazy=True)
-    time_logs = db.relationship('TimeLog', backref='mechanic', lazy=True)
-    assignments = db.relationship('WorkOrderAssignment', backref='mechanic', lazy=True)
+    assigned_orders = db.relationship('Order', back_populates='assigned_mechanic')
+    assignments = db.relationship('WorkOrderAssignment', foreign_keys='WorkOrderAssignment.mechanic_id', back_populates='mechanic')
+    comments = db.relationship('OrderComment', back_populates='mechanic')
+    time_logs = db.relationship('TimeLog', back_populates='mechanic')
+    custom_works = db.relationship('CustomWorkItem', back_populates='added_by')
+    custom_parts = db.relationship('CustomPartItem', back_populates='added_by')
     
     def to_dict(self):
         return {
             'id': self.id,
             'email': self.email,
             'name': self.name,
+            'phone': self.phone,
+            'telegram_id': self.telegram_id,
+            'telegram_username': self.telegram_username,
+            'specialty': self.specialty,
             'active': self.active,
-            'created_at': self.created_at.isoformat()
+            'created_at': self.created_at.isoformat(),
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None
         }
 
 
@@ -99,11 +112,12 @@ class Order(db.Model):
     comments_count = db.Column(db.Integer, default=0)
     total_time_minutes = db.Column(db.Integer, default=0)
     
-    comments = db.relationship('OrderComment', backref='order', lazy=True, cascade='all, delete-orphan')
-    time_logs = db.relationship('TimeLog', backref='order', lazy=True, cascade='all, delete-orphan')
-    custom_works = db.relationship('CustomWorkItem', backref='order', lazy=True, cascade='all, delete-orphan')
-    custom_parts = db.relationship('CustomPartItem', backref='order', lazy=True, cascade='all, delete-orphan')
-    assignments = db.relationship('WorkOrderAssignment', backref='order', lazy=True, cascade='all, delete-orphan')
+    assigned_mechanic = db.relationship('Mechanic', back_populates='assigned_orders')
+    assignments = db.relationship('WorkOrderAssignment', back_populates='order', cascade='all, delete-orphan')
+    comments = db.relationship('OrderComment', back_populates='order', order_by='OrderComment.created_at.desc()', cascade='all, delete-orphan')
+    time_logs = db.relationship('TimeLog', back_populates='order', order_by='TimeLog.started_at.desc()', cascade='all, delete-orphan')
+    custom_works = db.relationship('CustomWorkItem', back_populates='order', cascade='all, delete-orphan')
+    custom_parts = db.relationship('CustomPartItem', back_populates='order', cascade='all, delete-orphan')
     
     def to_dict(self):
         return {
@@ -127,6 +141,38 @@ class Order(db.Model):
         }
 
 
+class WorkOrderAssignment(db.Model):
+    __tablename__ = 'work_order_assignments'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    order_id = db.Column(db.Integer, db.ForeignKey('orders.id'), nullable=False)
+    mechanic_id = db.Column(db.Integer, db.ForeignKey('mechanics.id'), nullable=False)
+    assigned_at = db.Column(db.DateTime, default=datetime.utcnow)
+    assigned_by_id = db.Column(db.Integer, db.ForeignKey('mechanics.id'))
+    status = db.Column(db.String(20), default='assigned')
+    notes = db.Column(db.Text)
+    
+    order = db.relationship('Order', back_populates='assignments')
+    mechanic = db.relationship('Mechanic', foreign_keys=[mechanic_id], back_populates='assignments')
+    assigned_by = db.relationship('Mechanic', foreign_keys=[assigned_by_id])
+    
+    __table_args__ = (
+        Index('idx_assignments_mechanic', 'mechanic_id'),
+        Index('idx_assignments_order', 'order_id'),
+    )
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'order_id': self.order_id,
+            'mechanic_id': self.mechanic_id,
+            'assigned_at': self.assigned_at.isoformat(),
+            'assigned_by_id': self.assigned_by_id,
+            'status': self.status,
+            'notes': self.notes
+        }
+
+
 class OrderComment(db.Model):
     __tablename__ = 'order_comments'
     
@@ -136,14 +182,21 @@ class OrderComment(db.Model):
     comment = db.Column(db.Text, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
+    order = db.relationship('Order', back_populates='comments')
+    mechanic = db.relationship('Mechanic', back_populates='comments')
+    
+    __table_args__ = (
+        Index('idx_comments_order', 'order_id'),
+    )
+    
     def to_dict(self):
         return {
             'id': self.id,
             'order_id': self.order_id,
             'mechanic_id': self.mechanic_id,
+            'mechanic_name': self.mechanic.name if self.mechanic else None,
             'comment': self.comment,
-            'created_at': self.created_at.isoformat(),
-            'mechanic_name': self.mechanic.name if self.mechanic else None
+            'created_at': self.created_at.isoformat()
         }
 
 
@@ -155,16 +208,25 @@ class TimeLog(db.Model):
     mechanic_id = db.Column(db.Integer, db.ForeignKey('mechanics.id'), nullable=False)
     started_at = db.Column(db.DateTime, nullable=False)
     ended_at = db.Column(db.DateTime, nullable=True)
-    duration_minutes = db.Column(db.Integer, default=0)
+    duration_minutes = db.Column(db.Integer, nullable=True)
     notes = db.Column(db.Text, nullable=True)
-    is_active = db.Column(db.Boolean, default=False)
+    is_active = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    order = db.relationship('Order', back_populates='time_logs')
+    mechanic = db.relationship('Mechanic', back_populates='time_logs')
+    
+    __table_args__ = (
+        Index('idx_time_logs_mechanic', 'mechanic_id'),
+        Index('idx_time_logs_active', 'is_active'),
+    )
     
     def to_dict(self):
         return {
             'id': self.id,
             'order_id': self.order_id,
             'mechanic_id': self.mechanic_id,
+            'mechanic_name': self.mechanic.name if self.mechanic else None,
             'started_at': self.started_at.isoformat(),
             'ended_at': self.ended_at.isoformat() if self.ended_at else None,
             'duration_minutes': self.duration_minutes,
@@ -183,10 +245,11 @@ class CustomWorkItem(db.Model):
     description = db.Column(db.Text, nullable=True)
     price = db.Column(db.Float, nullable=True)
     estimated_time_minutes = db.Column(db.Integer, nullable=True)
-    added_by_mechanic_id = db.Column(db.Integer, db.ForeignKey('mechanics.id'), nullable=False)
+    added_by_id = db.Column(db.Integer, db.ForeignKey('mechanics.id'), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
-    added_by_mechanic = db.relationship('Mechanic', foreign_keys=[added_by_mechanic_id])
+    order = db.relationship('Order', back_populates='custom_works')
+    added_by = db.relationship('Mechanic', back_populates='custom_works')
     
     def to_dict(self):
         return {
@@ -196,7 +259,8 @@ class CustomWorkItem(db.Model):
             'description': self.description,
             'price': self.price,
             'estimated_time_minutes': self.estimated_time_minutes,
-            'added_by_mechanic_id': self.added_by_mechanic_id,
+            'added_by_id': self.added_by_id,
+            'added_by_name': self.added_by.name if self.added_by else None,
             'created_at': self.created_at.isoformat()
         }
 
@@ -210,10 +274,11 @@ class CustomPartItem(db.Model):
     part_number = db.Column(db.String(100), nullable=True)
     price = db.Column(db.Float, nullable=True)
     quantity = db.Column(db.Integer, default=1)
-    added_by_mechanic_id = db.Column(db.Integer, db.ForeignKey('mechanics.id'), nullable=False)
+    added_by_id = db.Column(db.Integer, db.ForeignKey('mechanics.id'), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     
-    added_by_mechanic = db.relationship('Mechanic', foreign_keys=[added_by_mechanic_id])
+    order = db.relationship('Order', back_populates='custom_parts')
+    added_by = db.relationship('Mechanic', back_populates='custom_parts')
     
     def to_dict(self):
         return {
@@ -223,27 +288,7 @@ class CustomPartItem(db.Model):
             'part_number': self.part_number,
             'price': self.price,
             'quantity': self.quantity,
-            'added_by_mechanic_id': self.added_by_mechanic_id,
+            'added_by_id': self.added_by_id,
+            'added_by_name': self.added_by.name if self.added_by else None,
             'created_at': self.created_at.isoformat()
-        }
-
-
-class WorkOrderAssignment(db.Model):
-    __tablename__ = 'work_order_assignments'
-    
-    id = db.Column(db.Integer, primary_key=True)
-    order_id = db.Column(db.Integer, db.ForeignKey('orders.id'), nullable=False)
-    mechanic_id = db.Column(db.Integer, db.ForeignKey('mechanics.id'), nullable=False)
-    status = db.Column(db.String(50), default='assigned')
-    assigned_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-    
-    def to_dict(self):
-        return {
-            'id': self.id,
-            'order_id': self.order_id,
-            'mechanic_id': self.mechanic_id,
-            'status': self.status,
-            'assigned_at': self.assigned_at.isoformat(),
-            'updated_at': self.updated_at.isoformat() if self.updated_at else None
         }
