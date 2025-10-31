@@ -51,6 +51,7 @@ db.init_app(app)
 ALLOWED_ORIGINS = os.getenv('ALLOWED_ORIGINS', '*').split(',')
 CORS(app, origins=ALLOWED_ORIGINS)
 
+# Setup logging early
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -60,6 +61,35 @@ logging.basicConfig(
     ]
 )
 logger = logging.getLogger(__name__)
+
+
+# ВАЖНО: Создать таблицы сразу при импорте модуля
+def init_database():
+    """Инициализировать базу данных"""
+    try:
+        with app.app_context():
+            # Проверить подключение
+            db.engine.connect()
+            logger.info(f"✅ Database connected: {app.config['SQLALCHEMY_DATABASE_URI'][:50]}...")
+            
+            # Создать все таблицы
+            db.create_all()
+            logger.info("✅ Database tables created/verified")
+            
+            # Проверить что таблицы существуют
+            from sqlalchemy import inspect
+            inspector = inspect(db.engine)
+            tables = inspector.get_table_names()
+            logger.info(f"📋 Available tables: {tables}")
+            
+    except Exception as e:
+        logger.error(f"❌ Database initialization error: {e}")
+        import traceback
+        traceback.print_exc()
+
+
+# Инициализировать БД при загрузке модуля
+init_database()
 
 
 @app.errorhandler(400)
@@ -129,8 +159,33 @@ def get_orders_stats():
         }), 200
         
     except Exception as e:
-        logger.error(f"Error fetching stats: {e}")
-        return jsonify({'error': 'Ошибка получения статистики'}), 500
+        # Если таблицы нет - попробовать создать
+        if "no such table" in str(e).lower():
+            try:
+                db.create_all()
+                logger.info("✅ Tables created on demand")
+                total = Order.query.count()
+                by_status = db.session.query(
+                    Order.status, 
+                    db.func.count(Order.id)
+                ).group_by(Order.status).all()
+                
+                today = datetime.now().date()
+                today_count = Order.query.filter(
+                    db.func.date(Order.created_at) == today
+                ).count()
+                
+                return jsonify({
+                    'total': total,
+                    'by_status': dict(by_status),
+                    'today': today_count
+                }), 200
+            except Exception as e2:
+                logger.error(f"❌ Error creating tables: {e2}")
+                return jsonify({"error": "Database not initialized", "details": str(e2)}), 500
+        else:
+            logger.error(f"Error fetching stats: {e}")
+            return jsonify({'error': 'Ошибка получения статистики'}), 500
 
 
 @app.route('/export')
@@ -252,8 +307,36 @@ def get_orders():
         return jsonify([order.to_dict() for order in orders]), 200
         
     except Exception as e:
-        logger.error(f"Error fetching orders: {e}")
-        return jsonify({'error': 'Ошибка получения заказов'}), 500
+        # Если таблицы нет - попробовать создать
+        if "no such table" in str(e).lower():
+            try:
+                db.create_all()
+                logger.info("✅ Tables created on demand")
+                query = Order.query
+                
+                status = request.args.get('status')
+                if status:
+                    query = query.filter_by(status=status)
+                
+                mechanic = request.args.get('mechanic')
+                if mechanic:
+                    query = query.filter_by(mechanic_name=mechanic)
+                
+                telegram_id = request.args.get('telegram_id')
+                if telegram_id:
+                    query = query.filter_by(telegram_id=telegram_id)
+                
+                limit = request.args.get('limit', 50, type=int)
+                offset = request.args.get('offset', 0, type=int)
+                
+                orders = query.order_by(Order.created_at.desc()).limit(limit).offset(offset).all()
+                return jsonify([order.to_dict() for order in orders]), 200
+            except Exception as e2:
+                logger.error(f"❌ Error creating tables: {e2}")
+                return jsonify({"error": "Database not initialized", "details": str(e2)}), 500
+        else:
+            logger.error(f"Error fetching orders: {e}")
+            return jsonify({'error': 'Ошибка получения заказов'}), 500
 
 
 @app.route('/api/orders/<int:order_id>', methods=['GET'])
@@ -680,18 +763,19 @@ def setup_telegram_webhook():
         # Зарегистрировать все handlers из бота
         setup_handlers(telegram_app)
         
-        # Установить webhook
-        webhook_url = f"{WEBHOOK_URL}/webhook"
+        # ВАЖНО: Инициализировать application для webhook режима
+        async def init_and_set_webhook():
+            await telegram_app.initialize()
+            await telegram_app.bot.set_webhook(f"{WEBHOOK_URL}/webhook")
+            logger.info(f"✅ Telegram webhook set to: {WEBHOOK_URL}/webhook")
         
-        # Запустить event loop для установки webhook
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        loop.run_until_complete(telegram_app.bot.set_webhook(webhook_url))
-        loop.close()
+        # Запустить инициализацию
+        asyncio.run(init_and_set_webhook())
         
-        logger.info(f"✅ Telegram webhook set to: {webhook_url}")
     except Exception as e:
-        logger.error(f"❌ Error setting up webhook: {e}")
+        logger.error(f"❌ Failed to setup webhook: {e}")
+        import traceback
+        traceback.print_exc()
         telegram_app = None
 
 
@@ -708,17 +792,22 @@ def telegram_webhook():
         if not update_data:
             return jsonify({'error': 'No data'}), 400
         
+        # Создать Update объект
         update = Update.de_json(update_data, telegram_app.bot)
         
         # Обработать update асинхронно
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        loop.run_until_complete(telegram_app.process_update(update))
-        loop.close()
+        async def process():
+            await telegram_app.process_update(update)
+        
+        # Запустить в event loop
+        asyncio.run(process())
         
         return jsonify({'ok': True}), 200
+        
     except Exception as e:
         logger.error(f"❌ Webhook error: {e}")
+        import traceback
+        traceback.print_exc()
         return jsonify({'error': str(e)}), 500
 
 
