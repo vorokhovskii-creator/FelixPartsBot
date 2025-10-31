@@ -292,3 +292,34 @@ class CustomPartItem(db.Model):
             'added_by_name': self.added_by.name if self.added_by else None,
             'created_at': self.created_at.isoformat()
         }
+
+
+class NotificationLog(db.Model):
+    __tablename__ = 'notification_logs'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    notification_type = db.Column(db.String(50), nullable=False)
+    order_id = db.Column(db.Integer, db.ForeignKey('orders.id'), nullable=True)
+    mechanic_id = db.Column(db.Integer, db.ForeignKey('mechanics.id'), nullable=True)
+    telegram_id = db.Column(db.String(50), nullable=False)
+    message_hash = db.Column(db.String(64), nullable=False)
+    sent_at = db.Column(db.DateTime, default=datetime.utcnow)
+    success = db.Column(db.Boolean, default=True)
+    error_message = db.Column(db.Text, nullable=True)
+    
+    __table_args__ = (
+        Index('idx_notification_hash', 'message_hash'),
+        Index('idx_notification_telegram', 'telegram_id', 'notification_type'),
+    )
+    
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'notification_type': self.notification_type,
+            'order_id': self.order_id,
+            'mechanic_id': self.mechanic_id,
+            'telegram_id': self.telegram_id,
+            'sent_at': self.sent_at.isoformat(),
+            'success': self.success,
+            'error_message': self.error_message
+        }

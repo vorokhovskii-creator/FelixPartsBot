@@ -4,6 +4,11 @@ from werkzeug.security import check_password_hash, generate_password_hash
 from sqlalchemy import func
 from models import db, Mechanic, Order, OrderComment, TimeLog, CustomWorkItem, CustomPartItem, WorkOrderAssignment
 from auth import generate_jwt_token, require_auth, get_jwt_identity
+import jwt
+import os
+import logging
+
+logger = logging.getLogger(__name__)
 
 mechanic_bp = Blueprint('mechanic', __name__, url_prefix='/api/mechanic')
 
@@ -28,6 +33,53 @@ def mechanic_login():
             'mechanic': mechanic.to_dict()
         })
     return jsonify({'error': 'Неверный email или пароль'}), 401
+
+
+@mechanic_bp.route('/token-login', methods=['POST'])
+def mechanic_token_login():
+    """Вход механика по временному токену (для deeplink из Telegram)"""
+    data = request.json
+    
+    if not data or 'token' not in data:
+        return jsonify({'error': 'Токен обязателен'}), 400
+    
+    try:
+        secret_key = os.getenv('SECRET_KEY', 'dev-secret-key')
+        payload = jwt.decode(data['token'], secret_key, algorithms=['HS256'])
+        
+        mechanic_id = payload.get('mechanic_id')
+        telegram_id = payload.get('telegram_id')
+        
+        if not mechanic_id or not telegram_id:
+            return jsonify({'error': 'Невалидный токен'}), 401
+        
+        # Проверить существование механика
+        mechanic = db.session.query(Mechanic).filter_by(
+            id=mechanic_id,
+            telegram_id=telegram_id,
+            active=True
+        ).first()
+        
+        if not mechanic:
+            return jsonify({'error': 'Механик не найден или неактивен'}), 404
+        
+        # Сгенерировать полноценный JWT токен
+        auth_token = generate_jwt_token(mechanic.id)
+        
+        logger.info(f"Mechanic {mechanic_id} logged in via token from Telegram")
+        
+        return jsonify({
+            'token': auth_token,
+            'mechanic': mechanic.to_dict()
+        })
+        
+    except jwt.ExpiredSignatureError:
+        return jsonify({'error': 'Токен истёк'}), 401
+    except jwt.InvalidTokenError:
+        return jsonify({'error': 'Невалидный токен'}), 401
+    except Exception as e:
+        logger.error(f"Token login error: {e}")
+        return jsonify({'error': 'Ошибка авторизации'}), 500
 
 
 @mechanic_bp.route('/me', methods=['GET'])

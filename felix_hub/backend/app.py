@@ -17,8 +17,8 @@ from werkzeug.security import generate_password_hash
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from models import (db, Order, Category, Part, Mechanic, OrderComment, 
-                    TimeLog, CustomWorkItem, CustomPartItem, WorkOrderAssignment)
-from utils.notifier import notify_order_ready, notify_order_status_changed
+                    TimeLog, CustomWorkItem, CustomPartItem, WorkOrderAssignment, NotificationLog)
+from utils.notifier import notify_order_ready, notify_order_status_changed, notify_mechanic_assignment
 from utils.printer import print_order_with_fallback, print_test_receipt
 
 load_dotenv()
@@ -923,7 +923,11 @@ def assign_order(order_id):
         
         logger.info(f"Order {order_id} assigned to mechanic {mechanic_id}")
         
-        # TODO: Отправить уведомление механику
+        # Отправить уведомление механику
+        try:
+            notify_mechanic_assignment(order, mechanic, is_reassignment=False, db_session=db.session)
+        except Exception as e:
+            logger.error(f"Error sending assignment notification: {e}")
         
         return jsonify({
             'order': order.to_dict(),
@@ -985,6 +989,12 @@ def reassign_order(order_id):
         db.session.commit()
         
         logger.info(f"Order {order_id} reassigned to mechanic {new_mechanic_id}")
+        
+        # Отправить уведомление механику о переназначении
+        try:
+            notify_mechanic_assignment(order, new_mechanic, is_reassignment=True, db_session=db.session)
+        except Exception as e:
+            logger.error(f"Error sending reassignment notification: {e}")
         
         return jsonify(order.to_dict()), 200
         
