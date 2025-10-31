@@ -8,6 +8,9 @@ from dotenv import load_dotenv
 import pandas as pd
 from sqlalchemy import text
 import asyncio
+import time
+from collections import OrderedDict
+from threading import Event, Lock, Thread
 
 # Add backend directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -733,13 +736,61 @@ def delete_part(part_id):
 
 # === Telegram Webhook ===
 
-# Глобальная переменная для telegram application
+# Глобальные объекты для управления Telegram webhook
 telegram_app = None
+telegram_loop = None
+telegram_thread = None
+_processed_updates = OrderedDict()
+_processed_updates_lock = Lock()
+PROCESSED_UPDATES_TTL = 60 * 15  # 15 минут
+PROCESSED_UPDATES_MAX_SIZE = 2048
+
+
+def _cleanup_processed_updates(now=None):
+    if now is None:
+        now = time.time()
+    while _processed_updates:
+        first_key, first_timestamp = next(iter(_processed_updates.items()))
+        if now - first_timestamp > PROCESSED_UPDATES_TTL:
+            _processed_updates.popitem(last=False)
+        else:
+            break
+
+
+def _register_update(update_id):
+    if update_id is None:
+        return True
+    update_key = str(update_id)
+    now = time.time()
+    with _processed_updates_lock:
+        _cleanup_processed_updates(now)
+        if update_key in _processed_updates:
+            return False
+        _processed_updates[update_key] = now
+        while len(_processed_updates) > PROCESSED_UPDATES_MAX_SIZE:
+            _processed_updates.popitem(last=False)
+    return True
+
+
+def _release_update(update_id):
+    if update_id is None:
+        return
+    update_key = str(update_id)
+    with _processed_updates_lock:
+        _processed_updates.pop(update_key, None)
+
+
+def _log_update_result(future, update_identifier):
+    try:
+        future.result()
+        logger.info(f"✅ Update {update_identifier} processed successfully")
+    except Exception as exc:
+        logger.error(f"❌ Update {update_identifier} processing error: {exc}", exc_info=True)
 
 
 def setup_telegram_webhook():
     """Настроить Telegram webhook"""
-    global telegram_app
+    global telegram_app, telegram_loop, telegram_thread
     
     if not TELEGRAM_AVAILABLE:
         logger.warning("⚠️  Telegram modules not available, webhook disabled")
@@ -757,7 +808,6 @@ def setup_telegram_webhook():
         return
     
     try:
-        # Создать custom request с таймаутами
         from telegram.request import HTTPXRequest
         
         request_config = HTTPXRequest(
@@ -767,99 +817,93 @@ def setup_telegram_webhook():
             write_timeout=10.0,
         )
         
-        # Создать application с таймаутами
         telegram_app = Application.builder()\
             .token(TELEGRAM_TOKEN)\
             .request(request_config)\
             .build()
         
-        # Зарегистрировать все handlers из бота
         setup_handlers(telegram_app)
         
-        # ВАЖНО: Инициализировать application для webhook режима
-        # НЕ вызывать start() - это только для polling режима
+        telegram_loop = asyncio.new_event_loop()
+        loop_ready = Event()
+        
+        def run_loop():
+            asyncio.set_event_loop(telegram_loop)
+            loop_ready.set()
+            telegram_loop.run_forever()
+        
+        telegram_thread = Thread(
+            target=run_loop,
+            name="TelegramWebhookLoop",
+            daemon=True
+        )
+        telegram_thread.start()
+        
+        if not loop_ready.wait(timeout=5.0):
+            raise RuntimeError("Telegram event loop thread failed to start")
+        
         async def init_and_set_webhook():
             await telegram_app.initialize()
             await telegram_app.bot.set_webhook(f"{WEBHOOK_URL}/webhook")
             logger.info(f"✅ Telegram webhook set to: {WEBHOOK_URL}/webhook")
         
-        # Запустить инициализацию
-        asyncio.run(init_and_set_webhook())
-        logger.info("✅ Telegram application initialized for webhook mode")
+        future = asyncio.run_coroutine_threadsafe(init_and_set_webhook(), telegram_loop)
+        future.result(timeout=30.0)
         
+        with _processed_updates_lock:
+            _processed_updates.clear()
+        
+        logger.info("✅ Telegram application initialized for webhook mode")
+    
     except Exception as e:
-        logger.error(f"❌ Failed to setup webhook: {e}")
-        import traceback
-        traceback.print_exc()
-        telegram_app = None
+        logger.error(f"❌ Failed to setup webhook: {e}", exc_info=True)
+        cleanup_telegram_app()
 
 
 @app.route('/webhook', methods=['POST'])
 def telegram_webhook():
     """Endpoint для приёма обновлений от Telegram"""
-    if not telegram_app:
+    if not telegram_app or not telegram_loop:
         logger.error("❌ Webhook called but telegram_app is not configured")
         return jsonify({'error': 'Bot not configured'}), 500
     
+    if not telegram_loop.is_running():
+        logger.error("❌ Telegram event loop is not running")
+        return jsonify({'error': 'Bot not ready'}), 503
+    
     try:
-        # Получить update от Telegram
         update_data = request.get_json()
         
         if not update_data:
             logger.warning("⚠️  Webhook called with no data")
             return jsonify({'error': 'No data'}), 400
         
-        logger.info(f"📨 Received webhook update: {update_data.get('update_id', 'unknown')}")
+        update_id_value = update_data.get('update_id')
+        update_identifier = str(update_id_value) if update_id_value is not None else 'unknown'
         
-        # БЫСТРО вернуть 200 OK чтобы Telegram не ждал
-        # Обработку сделать в фоне
-        from threading import Thread
+        if update_id_value is not None and not _register_update(update_id_value):
+            logger.info(f"🔁 Duplicate update {update_identifier} ignored")
+            return jsonify({'ok': True, 'duplicate': True}), 200
         
-        def process_update_async():
-            """Обработать update в отдельном потоке с правильным управлением event loop"""
-            try:
-                from telegram import Update
-                update = Update.de_json(update_data, telegram_app.bot)
-                
-                # Использовать asyncio.run() для правильного управления event loop
-                # Он создаст новый loop, выполнит задачу и правильно закроет его
-                # после завершения всех pending задач
-                asyncio.run(telegram_app.process_update(update))
-                logger.info(f"✅ Update {update_data.get('update_id')} processed successfully")
-                
-            except RuntimeError as e:
-                if 'Event loop is closed' in str(e):
-                    logger.error(f"❌ Event loop error while processing update: {e}")
-                    logger.error("Stack trace:", exc_info=True)
-                    # Попробовать с новым event loop
-                    try:
-                        loop = asyncio.new_event_loop()
-                        asyncio.set_event_loop(loop)
-                        try:
-                            loop.run_until_complete(telegram_app.process_update(update))
-                            logger.info(f"✅ Update {update_data.get('update_id')} processed with new loop")
-                        finally:
-                            # Дать время на завершение всех задач
-                            pending = asyncio.all_tasks(loop)
-                            if pending:
-                                loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
-                            loop.close()
-                    except Exception as retry_error:
-                        logger.error(f"❌ Retry failed: {retry_error}", exc_info=True)
-                else:
-                    raise
-                    
-            except Exception as e:
-                logger.error(f"❌ Update processing error: {e}", exc_info=True)
+        logger.info(f"📨 Received webhook update: {update_identifier}")
         
-        # Запустить в отдельном потоке
-        thread = Thread(target=process_update_async, name=f"TelegramUpdate-{update_data.get('update_id', 'unknown')}")
-        thread.daemon = True
-        thread.start()
+        update = Update.de_json(update_data, telegram_app.bot)
         
-        # Сразу вернуть OK
+        try:
+            future = asyncio.run_coroutine_threadsafe(
+                telegram_app.process_update(update),
+                telegram_loop
+            )
+        except Exception:
+            _release_update(update_id_value)
+            raise
+        
+        future.add_done_callback(
+            lambda fut, uid=update_identifier: _log_update_result(fut, uid)
+        )
+        
         return jsonify({'ok': True}), 200
-        
+    
     except Exception as e:
         logger.error(f"❌ Webhook error: {e}", exc_info=True)
         return jsonify({'error': str(e)}), 500
@@ -867,16 +911,34 @@ def telegram_webhook():
 
 def cleanup_telegram_app():
     """Gracefully shutdown telegram application"""
-    global telegram_app
-    if telegram_app:
-        try:
+    global telegram_app, telegram_loop, telegram_thread
+    try:
+        if telegram_app and telegram_loop and telegram_loop.is_running():
             logger.info("🔄 Shutting down telegram application...")
-            async def shutdown():
-                await telegram_app.shutdown()
-            asyncio.run(shutdown())
+            future = asyncio.run_coroutine_threadsafe(telegram_app.shutdown(), telegram_loop)
+            future.result(timeout=15.0)
             logger.info("✅ Telegram application shut down successfully")
-        except Exception as e:
-            logger.error(f"❌ Error shutting down telegram app: {e}", exc_info=True)
+    except Exception as e:
+        logger.error(f"❌ Error shutting down telegram app: {e}", exc_info=True)
+    finally:
+        if telegram_loop:
+            try:
+                if telegram_loop.is_running():
+                    telegram_loop.call_soon_threadsafe(telegram_loop.stop)
+            except RuntimeError:
+                pass
+        if telegram_thread and telegram_thread.is_alive():
+            telegram_thread.join(timeout=5.0)
+        if telegram_loop:
+            try:
+                telegram_loop.close()
+            except Exception:
+                pass
+        telegram_app = None
+        telegram_loop = None
+        telegram_thread = None
+        with _processed_updates_lock:
+            _processed_updates.clear()
 
 
 # Инициализировать webhook при старте приложения
