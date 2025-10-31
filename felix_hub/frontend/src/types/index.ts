@@ -24,6 +24,8 @@ export interface Comment {
 
 export interface TimeLog {
   id: number;
+  order_id: number;
+  mechanic_id: number;
   started_at: string;
   ended_at: string | null;
   duration_minutes: number | null;
@@ -62,6 +64,8 @@ export interface Mechanic {
   specialty: string;
   telegram_id?: number;
   active?: boolean;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface AuthResponse {
@@ -78,6 +82,13 @@ export interface MechanicStats {
   active_orders: number;
   completed_today: number;
   time_today_minutes: number;
+}
+
+export interface MechanicAllTimeStats {
+  total_completed: number;
+  active_orders: number;
+  total_minutes: number;
+  avg_order_time: number;
 }
 
 export interface TimeHistoryStats {
