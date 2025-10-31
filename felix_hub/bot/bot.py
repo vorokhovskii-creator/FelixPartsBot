@@ -663,9 +663,11 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Обработать ошибки"""
-    logger.error(f"❌ Error: {context.error}")
-    import traceback
-    traceback.print_exc()
+    logger.error(f"❌ Error: {context.error}", exc_info=context.error)
+    
+    # Дополнительная информация для отладки
+    if update:
+        logger.error(f"Update data: {update.to_dict() if hasattr(update, 'to_dict') else str(update)}")
     
     try:
         if update and update.effective_message:
@@ -674,7 +676,7 @@ async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 "😔 Произошла ошибка. Попробуйте ещё раз или отправьте /start"
             )
     except Exception as e:
-        logger.error(f"❌ Error handler failed: {e}")
+        logger.error(f"❌ Error handler failed: {e}", exc_info=True)
 
 
 def setup_handlers(application):

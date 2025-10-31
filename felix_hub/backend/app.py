@@ -777,6 +777,7 @@ def setup_telegram_webhook():
         setup_handlers(telegram_app)
         
         # ВАЖНО: Инициализировать application для webhook режима
+        # НЕ вызывать start() - это только для polling режима
         async def init_and_set_webhook():
             await telegram_app.initialize()
             await telegram_app.bot.set_webhook(f"{WEBHOOK_URL}/webhook")
@@ -784,6 +785,7 @@ def setup_telegram_webhook():
         
         # Запустить инициализацию
         asyncio.run(init_and_set_webhook())
+        logger.info("✅ Telegram application initialized for webhook mode")
         
     except Exception as e:
         logger.error(f"❌ Failed to setup webhook: {e}")
@@ -796,6 +798,7 @@ def setup_telegram_webhook():
 def telegram_webhook():
     """Endpoint для приёма обновлений от Telegram"""
     if not telegram_app:
+        logger.error("❌ Webhook called but telegram_app is not configured")
         return jsonify({'error': 'Bot not configured'}), 500
     
     try:
@@ -803,30 +806,54 @@ def telegram_webhook():
         update_data = request.get_json()
         
         if not update_data:
+            logger.warning("⚠️  Webhook called with no data")
             return jsonify({'error': 'No data'}), 400
+        
+        logger.info(f"📨 Received webhook update: {update_data.get('update_id', 'unknown')}")
         
         # БЫСТРО вернуть 200 OK чтобы Telegram не ждал
         # Обработку сделать в фоне
         from threading import Thread
         
         def process_update_async():
+            """Обработать update в отдельном потоке с правильным управлением event loop"""
             try:
                 from telegram import Update
                 update = Update.de_json(update_data, telegram_app.bot)
                 
-                # Обработать в event loop
-                import asyncio
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-                loop.run_until_complete(telegram_app.process_update(update))
-                loop.close()
+                # Использовать asyncio.run() для правильного управления event loop
+                # Он создаст новый loop, выполнит задачу и правильно закроет его
+                # после завершения всех pending задач
+                asyncio.run(telegram_app.process_update(update))
+                logger.info(f"✅ Update {update_data.get('update_id')} processed successfully")
+                
+            except RuntimeError as e:
+                if 'Event loop is closed' in str(e):
+                    logger.error(f"❌ Event loop error while processing update: {e}")
+                    logger.error("Stack trace:", exc_info=True)
+                    # Попробовать с новым event loop
+                    try:
+                        loop = asyncio.new_event_loop()
+                        asyncio.set_event_loop(loop)
+                        try:
+                            loop.run_until_complete(telegram_app.process_update(update))
+                            logger.info(f"✅ Update {update_data.get('update_id')} processed with new loop")
+                        finally:
+                            # Дать время на завершение всех задач
+                            pending = asyncio.all_tasks(loop)
+                            if pending:
+                                loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
+                            loop.close()
+                    except Exception as retry_error:
+                        logger.error(f"❌ Retry failed: {retry_error}", exc_info=True)
+                else:
+                    raise
+                    
             except Exception as e:
-                logger.error(f"❌ Update processing error: {e}")
-                import traceback
-                traceback.print_exc()
+                logger.error(f"❌ Update processing error: {e}", exc_info=True)
         
         # Запустить в отдельном потоке
-        thread = Thread(target=process_update_async)
+        thread = Thread(target=process_update_async, name=f"TelegramUpdate-{update_data.get('update_id', 'unknown')}")
         thread.daemon = True
         thread.start()
         
@@ -834,15 +861,31 @@ def telegram_webhook():
         return jsonify({'ok': True}), 200
         
     except Exception as e:
-        logger.error(f"❌ Webhook error: {e}")
-        import traceback
-        traceback.print_exc()
+        logger.error(f"❌ Webhook error: {e}", exc_info=True)
         return jsonify({'error': str(e)}), 500
+
+
+def cleanup_telegram_app():
+    """Gracefully shutdown telegram application"""
+    global telegram_app
+    if telegram_app:
+        try:
+            logger.info("🔄 Shutting down telegram application...")
+            async def shutdown():
+                await telegram_app.shutdown()
+            asyncio.run(shutdown())
+            logger.info("✅ Telegram application shut down successfully")
+        except Exception as e:
+            logger.error(f"❌ Error shutting down telegram app: {e}", exc_info=True)
 
 
 # Инициализировать webhook при старте приложения
 with app.app_context():
     setup_telegram_webhook()
+
+# Зарегистрировать cleanup при завершении
+import atexit
+atexit.register(cleanup_telegram_app)
 
 
 if __name__ == '__main__':
