@@ -89,4 +89,63 @@ npx shadcn-ui@latest add dialog
 
 ## Environment Variables
 
+### Development
+
 No environment variables are required for development. The API proxy is configured in `vite.config.ts`.
+
+### Production
+
+For production deployment, the app uses environment variables to configure the API URL:
+
+- `VITE_API_URL` - Backend API base URL (e.g., `https://felix-hub-backend.onrender.com/api`)
+
+The `.env.production` file is included in the repository with the production API URL:
+
+```env
+VITE_API_URL=https://felix-hub-backend.onrender.com/api
+```
+
+## Deployment
+
+### Render Static Site
+
+The frontend is deployed as a static site on Render.com. The configuration is in `render.yaml` at the repository root.
+
+#### Automatic Deployment
+
+When you push to the `main` branch, Render automatically:
+1. Runs `npm ci && npm run build`
+2. Publishes the `dist/` directory
+
+#### Manual Deployment via Render Dashboard
+
+1. **New → Static Site**
+2. **Connect repository**: FelixPartsBot
+3. **Configure**:
+   - Name: `felix-hub-mechanics-frontend`
+   - Branch: `main`
+   - Build Command: `cd felix_hub/frontend && npm ci && npm run build`
+   - Publish Directory: `felix_hub/frontend/dist`
+   - Auto-Deploy: Yes
+4. **Environment Variables**:
+   - `VITE_API_URL`: `https://felix-hub-backend.onrender.com/api`
+
+#### Verify Deployment
+
+1. Visit `https://[your-site].onrender.com/mechanic/login`
+2. Check that:
+   - ✅ All pages load without errors
+   - ✅ API requests go to the correct backend URL
+   - ✅ No CORS errors in console
+   - ✅ Login and dashboard work correctly
+
+### Local Production Build
+
+To test the production build locally:
+
+```bash
+npm run build
+npm run preview
+```
+
+The preview server will serve the production build at `http://localhost:4173`.

@@ -15,6 +15,20 @@ services:
       - key: WEBHOOK_URL
         value: https://felix-hub-backend.onrender.com
 
+  # Mechanics Frontend (Static Site)
+  - type: web
+    name: felix-hub-mechanics-frontend
+    env: static
+    region: frankfurt
+    plan: free
+    branch: main
+    buildCommand: "cd felix_hub/frontend && npm ci && npm run build"
+    staticPublishPath: felix_hub/frontend/dist
+    autoDeploy: true
+    envVars:
+      - key: VITE_API_URL
+        value: https://felix-hub-backend.onrender.com/api
+
 databases:
   # PostgreSQL Database
   - name: felix-hub-db
