@@ -63,6 +63,7 @@ export default function OrderDetailsPage() {
               variant="ghost"
               size="icon"
               onClick={() => navigate('/mechanic/dashboard')}
+              aria-label="Назад к дашборду"
             >
               <ArrowLeft className="h-5 w-5" />
             </Button>
@@ -77,6 +78,7 @@ export default function OrderDetailsPage() {
               variant="outline"
               size="icon"
               asChild
+              aria-label="Позвонить клиенту"
             >
               <a href={`tel:${order.phone}`}>
                 <Phone className="h-5 w-5" />

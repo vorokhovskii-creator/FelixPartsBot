@@ -3,7 +3,9 @@ import { useNavigate } from 'react-router-dom';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Clock, CheckCircle, Wrench } from 'lucide-react';
+import { Clock, CheckCircle, Wrench, AlertCircle } from 'lucide-react';
+import { toast } from 'sonner';
+import { DashboardSkeleton } from '@/components/LoadingSkeleton';
 import api from '@/lib/api';
 import type { Order, MechanicStats } from '@/types';
 
@@ -12,25 +14,34 @@ export default function MechanicDashboard() {
   const [stats, setStats] = useState<MechanicStats | null>(null);
   const [filter, setFilter] = useState<string>('all');
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
 
   const fetchStats = useCallback(async () => {
     try {
       const response = await api.get('/mechanic/stats');
       setStats(response.data);
-    } catch (error) {
+      setError(null);
+    } catch (error: any) {
       console.error('Error fetching stats:', error);
+      const message = error.response?.data?.error || 'Ошибка загрузки статистики';
+      setError(message);
+      toast.error(message);
     }
   }, []);
 
   const fetchOrders = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
       const params = filter !== 'all' ? { status: filter } : {};
       const response = await api.get('/mechanic/orders', { params });
       setOrders(response.data);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching orders:', error);
+      const message = error.response?.data?.error || 'Ошибка загрузки заказов';
+      setError(message);
+      toast.error(message);
     } finally {
       setLoading(false);
     }
@@ -50,6 +61,10 @@ export default function MechanicDashboard() {
     };
     return colors[status as keyof typeof colors] || '';
   };
+
+  if (loading && orders.length === 0) {
+    return <DashboardSkeleton />;
+  }
 
   return (
     <div className="container max-w-4xl mx-auto px-4 py-6">
@@ -100,6 +115,14 @@ export default function MechanicDashboard() {
 
       {/* Список заказов */}
       <div className="space-y-3">
+        {error && !loading && (
+          <Card className="border-red-200 bg-red-50">
+            <CardContent className="p-4 flex items-center gap-2 text-red-800">
+              <AlertCircle className="h-5 w-5" />
+              <span>{error}</span>
+            </CardContent>
+          </Card>
+        )}
         {loading ? (
           <div className="text-center py-8 text-gray-500">Загрузка...</div>
         ) : orders.length === 0 ? (

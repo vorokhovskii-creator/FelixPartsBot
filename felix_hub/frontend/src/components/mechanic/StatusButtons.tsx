@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Play, Pause, CheckCircle } from 'lucide-react';
 
@@ -6,7 +7,7 @@ interface StatusButtonsProps {
   onStatusChange: (status: string) => void;
 }
 
-export default function StatusButtons({ currentStatus, onStatusChange }: StatusButtonsProps) {
+function StatusButtons({ currentStatus, onStatusChange }: StatusButtonsProps) {
   return (
     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
       {currentStatus === 'новый' && (
@@ -58,3 +59,5 @@ export default function StatusButtons({ currentStatus, onStatusChange }: StatusB
     </div>
   );
 }
+
+export default memo(StatusButtons);
