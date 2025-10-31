@@ -120,6 +120,9 @@ class Order(db.Model):
     custom_parts = db.relationship('CustomPartItem', back_populates='order', cascade='all, delete-orphan')
     
     def to_dict(self):
+        part_name = ', '.join(self.selected_parts) if isinstance(self.selected_parts, list) else str(self.selected_parts)
+        part_type = 'Оригинал' if self.is_original else 'Аналог'
+        
         return {
             'id': self.id,
             'mechanic_name': self.mechanic_name,
@@ -127,6 +130,8 @@ class Order(db.Model):
             'category': self.category,
             'vin': self.vin,
             'selected_parts': self.selected_parts,
+            'part_name': part_name,
+            'part_type': part_type,
             'is_original': self.is_original,
             'photo_url': self.photo_url,
             'status': self.status,

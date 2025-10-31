@@ -1,11 +1,13 @@
 from flask import Blueprint, request, jsonify
 from datetime import datetime
 from werkzeug.security import check_password_hash, generate_password_hash
+from werkzeug.utils import secure_filename
 from sqlalchemy import func
-from models import db, Mechanic, Order, OrderComment, TimeLog, CustomWorkItem, CustomPartItem, WorkOrderAssignment
+from models import db, Mechanic, Order, OrderComment, TimeLog, CustomWorkItem, CustomPartItem, WorkOrderAssignment, Category, Part
 from auth import generate_jwt_token, require_auth, get_jwt_identity
 import jwt
 import os
+import json
 import logging
 
 logger = logging.getLogger(__name__)
@@ -515,3 +517,79 @@ def change_mechanic_password():
     db.session.commit()
     
     return jsonify({'message': 'Пароль успешно изменён'})
+
+
+@mechanic_bp.route('/orders', methods=['POST'])
+@require_auth
+def create_order():
+    """Механик создаёт заказ на запчасти"""
+    mechanic_id = get_jwt_identity()
+    mechanic = db.session.query(Mechanic).get(mechanic_id)
+    
+    if not mechanic:
+        return jsonify({'error': 'Механик не найден'}), 404
+    
+    try:
+        category_id = request.form.get('category_id')
+        part_ids_json = request.form.get('part_ids')
+        vin = request.form.get('vin')
+        part_type = request.form.get('part_type')
+        
+        if not all([category_id, part_ids_json, vin, part_type]):
+            return jsonify({'error': 'Все поля обязательны'}), 400
+        
+        part_ids = json.loads(part_ids_json)
+        
+        if not isinstance(part_ids, list) or len(part_ids) == 0:
+            return jsonify({'error': 'Выберите хотя бы одну запчасть'}), 400
+        
+        category = db.session.query(Category).get(category_id)
+        if not category:
+            return jsonify({'error': 'Категория не найдена'}), 404
+        
+        parts = db.session.query(Part).filter(Part.id.in_(part_ids)).all()
+        if len(parts) != len(part_ids):
+            return jsonify({'error': 'Некоторые запчасти не найдены'}), 404
+        
+        part_names = ', '.join([p.name_ru for p in parts])
+        
+        photo_url = None
+        if 'photo' in request.files:
+            file = request.files['photo']
+            if file and file.filename:
+                upload_folder = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'static', 'uploads')
+                os.makedirs(upload_folder, exist_ok=True)
+                
+                filename = secure_filename(f"order_{datetime.utcnow().timestamp()}_{file.filename}")
+                filepath = os.path.join(upload_folder, filename)
+                file.save(filepath)
+                photo_url = f"/static/uploads/{filename}"
+        
+        is_original = part_type == 'original'
+        
+        order = Order(
+            mechanic_name=mechanic.name,
+            telegram_id=mechanic.telegram_id or '',
+            category=category.name_ru,
+            vin=vin,
+            selected_parts=[p.name_ru for p in parts],
+            is_original=is_original,
+            photo_url=photo_url,
+            status='новый',
+            work_status='новый',
+            assigned_mechanic_id=mechanic_id
+        )
+        
+        db.session.add(order)
+        db.session.commit()
+        
+        logger.info(f"Order created by mechanic {mechanic.name}: ID={order.id}")
+        
+        return jsonify(order.to_dict()), 201
+        
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error creating order: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': 'Ошибка создания заказа'}), 500

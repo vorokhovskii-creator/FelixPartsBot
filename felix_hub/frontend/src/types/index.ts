@@ -108,3 +108,24 @@ export interface GroupedTimeLog {
   sessions: TimeLog[];
   total_minutes: number;
 }
+
+export interface Category {
+  id: number;
+  name_ru: string;
+  name_he?: string;
+  name_en?: string;
+  icon: string;
+  sort_order: number;
+  created_at: string;
+}
+
+export interface Part {
+  id: number;
+  category_id: number;
+  name_ru: string;
+  name_he?: string;
+  name_en?: string;
+  is_common: boolean;
+  sort_order: number;
+  created_at: string;
+}

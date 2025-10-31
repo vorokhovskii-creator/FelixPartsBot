@@ -7,6 +7,7 @@ import MechanicLayout from './components/mechanic/MechanicLayout';
 
 const MechanicLogin = lazy(() => import('./pages/MechanicLogin'));
 const MechanicDashboard = lazy(() => import('./pages/MechanicDashboard'));
+const NewOrder = lazy(() => import('./pages/NewOrder'));
 const OrderDetails = lazy(() => import('./pages/OrderDetails'));
 const MechanicTimeHistory = lazy(() => import('./pages/MechanicTimeHistory'));
 const MechanicProfile = lazy(() => import('./pages/MechanicProfile'));
@@ -54,6 +55,14 @@ function App() {
           <Routes>
             <Route path="/" element={<Navigate to="/mechanic/login" replace />} />
             <Route path="/mechanic/login" element={<MechanicLogin />} />
+            <Route 
+              path="/mechanic/orders/new" 
+              element={
+                <ProtectedRoute>
+                  <NewOrder />
+                </ProtectedRoute>
+              } 
+            />
             <Route
               path="/mechanic"
               element={
