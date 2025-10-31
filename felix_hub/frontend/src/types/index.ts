@@ -14,9 +14,11 @@ export interface Order {
 export interface Mechanic {
   id: number;
   name: string;
-  phone?: string;
+  email: string;
+  phone: string;
+  specialty: string;
   telegram_id?: number;
-  active: boolean;
+  active?: boolean;
 }
 
 export interface AuthResponse {

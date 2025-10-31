@@ -1,13 +1,14 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'sonner';
+import { AxiosError } from 'axios';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import api from '@/lib/api';
 import type { Order } from '@/types';
 import { format } from 'date-fns';
-import { ru } from 'date-fns/locale';
+import { ru } from 'date-fns/locale/ru';
 import { ArrowLeft } from 'lucide-react';
 
 export default function OrderDetails() {
@@ -17,22 +18,26 @@ export default function OrderDetails() {
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
 
-  useEffect(() => {
-    if (!id) return;
-    fetchOrder();
-  }, [id]);
-
-  const fetchOrder = async () => {
+  const fetchOrder = useCallback(async () => {
     try {
       const response = await api.get<Order>(`/mechanic/orders/${id}`);
       setOrder(response.data);
-    } catch (error: any) {
-      toast.error(error.response?.data?.message || 'Ошибка загрузки заказа');
+    } catch (error) {
+      if (error instanceof AxiosError && error.response?.data?.message) {
+        toast.error(error.response.data.message);
+      } else {
+        toast.error('Ошибка загрузки заказа');
+      }
       navigate('/mechanic/dashboard');
     } finally {
       setLoading(false);
     }
-  };
+  }, [id, navigate]);
+
+  useEffect(() => {
+    if (!id) return;
+    fetchOrder();
+  }, [id, fetchOrder]);
 
   const updateStatus = async (newStatus: Order['status']) => {
     if (!order) return;
@@ -43,8 +48,12 @@ export default function OrderDetails() {
       });
       setOrder(response.data);
       toast.success('Статус обновлен');
-    } catch (error: any) {
-      toast.error(error.response?.data?.message || 'Ошибка обновления статуса');
+    } catch (error) {
+      if (error instanceof AxiosError && error.response?.data?.message) {
+        toast.error(error.response.data.message);
+      } else {
+        toast.error('Ошибка обновления статуса');
+      }
     } finally {
       setUpdating(false);
     }
