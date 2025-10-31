@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Clock, CheckCircle, Wrench, AlertCircle } from 'lucide-react';
+import { Clock, CheckCircle, Wrench, AlertCircle, Plus } from 'lucide-react';
 import { toast } from 'sonner';
 import { DashboardSkeleton } from '@/components/LoadingSkeleton';
 import api from '@/lib/api';
@@ -68,6 +69,15 @@ export default function MechanicDashboard() {
 
   return (
     <div className="container max-w-4xl mx-auto px-4 py-6">
+      {/* Кнопка создания заказа */}
+      <Button 
+        className="w-full mb-6"
+        onClick={() => navigate('/mechanic/orders/new')}
+      >
+        <Plus className="h-5 w-5 mr-2" />
+        Создать заказ
+      </Button>
+
       {/* Статистика */}
       <div className="grid grid-cols-3 gap-3 mb-6">
         <Card>
