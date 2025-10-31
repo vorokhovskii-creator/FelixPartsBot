@@ -663,20 +663,21 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Обработать ошибки"""
-    logger.error(f"❌ Error: {context.error}", exc_info=context.error)
+    error = context.error
+    update_id = getattr(update, "update_id", "unknown") if update else "unknown"
+    exc_info = (type(error), error, error.__traceback__) if isinstance(error, BaseException) else None
     
-    # Дополнительная информация для отладки
+    logger.error(
+        f"❌ Error while handling update {update_id}: {error}",
+        exc_info=exc_info
+    )
+    
     if update:
-        logger.error(f"Update data: {update.to_dict() if hasattr(update, 'to_dict') else str(update)}")
-    
-    try:
-        if update and update.effective_message:
-            lang = context.user_data.get('language', 'ru') if context.user_data else 'ru'
-            await update.effective_message.reply_text(
-                "😔 Произошла ошибка. Попробуйте ещё раз или отправьте /start"
-            )
-    except Exception as e:
-        logger.error(f"❌ Error handler failed: {e}", exc_info=True)
+        try:
+            update_payload = update.to_dict() if hasattr(update, "to_dict") else str(update)
+            logger.debug(f"Update payload for {update_id}: {update_payload}")
+        except Exception as payload_error:
+            logger.debug(f"Failed to serialize update {update_id}: {payload_error}")
 
 
 def setup_handlers(application):
