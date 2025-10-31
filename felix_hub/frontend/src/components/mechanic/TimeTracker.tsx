@@ -101,14 +101,19 @@ export default function TimeTracker({ orderId, timeLogs }: TimeTrackerProps) {
   const stopTimer = async () => {
     setLoading(true);
     try {
-      await api.post(`/mechanic/orders/${orderId}/time/stop`, {
+      const response = await api.post(`/mechanic/orders/${orderId}/time/stop`, {
         notes: notes.trim() || undefined,
       });
       setActiveTimer(null);
       setElapsed(0);
       setNotes('');
+      
+      // Add the new log to the list instead of reloading
+      if (response.data) {
+        setLogs([response.data, ...logs]);
+      }
+      
       toast.success('Время сохранено');
-      window.location.reload();
     } catch (error: any) {
       toast.error(error.response?.data?.message || 'Ошибка остановки таймера');
     } finally {
@@ -118,11 +123,29 @@ export default function TimeTracker({ orderId, timeLogs }: TimeTrackerProps) {
 
   const onSubmitManualTime = async (data: ManualTimeForm) => {
     try {
-      await api.post(`/mechanic/orders/${orderId}/time/manual`, data);
+      // Calculate duration in minutes
+      const start = new Date(data.started_at);
+      const end = new Date(data.ended_at);
+      const duration_minutes = Math.round((end.getTime() - start.getTime()) / 60000);
+      
+      if (duration_minutes <= 0) {
+        toast.error('Время окончания должно быть после времени начала');
+        return;
+      }
+      
+      const response = await api.post(`/mechanic/orders/${orderId}/time/manual`, {
+        ...data,
+        duration_minutes
+      });
+      
+      // Add the new log to the list instead of reloading
+      if (response.data) {
+        setLogs([response.data, ...logs]);
+      }
+      
       toast.success('Время добавлено');
       reset();
       setShowManualForm(false);
-      window.location.reload();
     } catch (error: any) {
       toast.error(error.response?.data?.message || 'Ошибка добавления времени');
     }
