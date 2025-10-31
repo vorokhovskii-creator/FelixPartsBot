@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Clock, Play, TrendingUp, Package, ExternalLink } from 'lucide-react';
 import api from '@/lib/api';
 import { formatDuration, formatHours, formatTime, formatDate, groupByDay, getDateRange } from '@/lib/timeUtils';
-import type { TimeHistoryStats, TimeLog, GroupedTimeLog } from '@/types';
+import type { TimeHistoryStats, GroupedTimeLog } from '@/types';
 
 type Period = 'today' | 'yesterday' | 'week' | 'month' | 'custom';
 
@@ -19,7 +19,6 @@ export default function MechanicTimeHistory() {
     orders_count: 0,
     avg_session: 0
   });
-  const [sessions, setSessions] = useState<TimeLog[]>([]);
   const [groupedSessions, setGroupedSessions] = useState<GroupedTimeLog[]>([]);
   const [period, setPeriod] = useState<Period>('today');
   const [startDate, setStartDate] = useState('');
@@ -40,7 +39,6 @@ export default function MechanicTimeHistory() {
 
       const response = await api.get('/mechanic/time/history', { params });
       setStats(response.data.stats);
-      setSessions(response.data.sessions);
       setGroupedSessions(groupByDay(response.data.sessions));
     } catch (error) {
       console.error('Error fetching time history:', error);

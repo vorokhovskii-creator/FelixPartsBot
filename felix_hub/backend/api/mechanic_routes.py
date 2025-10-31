@@ -1,6 +1,6 @@
 from flask import Blueprint, request, jsonify
 from datetime import datetime
-from werkzeug.security import check_password_hash
+from werkzeug.security import check_password_hash, generate_password_hash
 from sqlalchemy import func
 from models import db, Mechanic, Order, OrderComment, TimeLog, CustomWorkItem, CustomPartItem, WorkOrderAssignment
 from auth import generate_jwt_token, require_auth, get_jwt_identity
@@ -315,28 +315,60 @@ def add_custom_part(order_id):
 def get_mechanic_stats():
     """Статистика работы механика"""
     mechanic_id = get_jwt_identity()
+    all_time = request.args.get('all_time', 'false') == 'true'
     
-    today = datetime.utcnow().date()
-    
-    stats = {
-        'active_orders': db.session.query(Order).filter(
+    if all_time:
+        # Общая статистика за всё время
+        total_completed = db.session.query(Order).filter(
+            Order.assigned_mechanic_id == mechanic_id,
+            Order.work_status == 'завершен'
+        ).count()
+        
+        active_orders = db.session.query(Order).filter(
             Order.assigned_mechanic_id == mechanic_id,
             Order.work_status.in_(['в работе', 'на паузе'])
-        ).count(),
+        ).count()
         
-        'completed_today': db.session.query(Order).filter(
+        total_minutes = db.session.query(func.sum(TimeLog.duration_minutes)).filter(
+            TimeLog.mechanic_id == mechanic_id,
+            TimeLog.is_active == False
+        ).scalar() or 0
+        
+        avg_order_time = db.session.query(func.avg(Order.total_time_minutes)).filter(
             Order.assigned_mechanic_id == mechanic_id,
             Order.work_status == 'завершен',
-            func.date(Order.updated_at) == today
-        ).count(),
+            Order.total_time_minutes > 0
+        ).scalar() or 0
         
-        'time_today_minutes': db.session.query(func.sum(TimeLog.duration_minutes)).filter(
-            TimeLog.mechanic_id == mechanic_id,
-            func.date(TimeLog.started_at) == today
-        ).scalar() or 0,
-    }
-    
-    return jsonify(stats)
+        return jsonify({
+            'total_completed': total_completed,
+            'active_orders': active_orders,
+            'total_minutes': int(total_minutes),
+            'avg_order_time': round(float(avg_order_time), 1)
+        })
+    else:
+        # Статистика за сегодня
+        today = datetime.utcnow().date()
+        
+        stats = {
+            'active_orders': db.session.query(Order).filter(
+                Order.assigned_mechanic_id == mechanic_id,
+                Order.work_status.in_(['в работе', 'на паузе'])
+            ).count(),
+            
+            'completed_today': db.session.query(Order).filter(
+                Order.assigned_mechanic_id == mechanic_id,
+                Order.work_status == 'завершен',
+                func.date(Order.updated_at) == today
+            ).count(),
+            
+            'time_today_minutes': db.session.query(func.sum(TimeLog.duration_minutes)).filter(
+                TimeLog.mechanic_id == mechanic_id,
+                func.date(TimeLog.started_at) == today
+            ).scalar() or 0,
+        }
+        
+        return jsonify(stats)
 
 
 @mechanic_bp.route('/time/history', methods=['GET'])
@@ -374,3 +406,60 @@ def get_mechanic_time_history():
         },
         'sessions': [log.to_dict() for log in time_logs]
     })
+
+
+@mechanic_bp.route('/profile', methods=['PATCH'])
+@require_auth
+def update_mechanic_profile():
+    """Обновление профиля механика"""
+    mechanic_id = get_jwt_identity()
+    mechanic = db.session.query(Mechanic).get(mechanic_id)
+    
+    if not mechanic:
+        return jsonify({'error': 'Механик не найден'}), 404
+    
+    data = request.json
+    
+    # Разрешено редактировать только телефон
+    if 'phone' in data:
+        mechanic.phone = data['phone']
+    
+    mechanic.updated_at = datetime.utcnow()
+    db.session.commit()
+    
+    return jsonify(mechanic.to_dict())
+
+
+@mechanic_bp.route('/change-password', methods=['POST'])
+@require_auth
+def change_mechanic_password():
+    """Смена пароля механика"""
+    mechanic_id = get_jwt_identity()
+    mechanic = db.session.query(Mechanic).get(mechanic_id)
+    
+    if not mechanic:
+        return jsonify({'error': 'Механик не найден'}), 404
+    
+    data = request.json
+    
+    if not data or 'current_password' not in data or 'new_password' not in data or 'confirm_password' not in data:
+        return jsonify({'error': 'Все поля обязательны'}), 400
+    
+    # Проверить текущий пароль
+    if not check_password_hash(mechanic.password_hash, data['current_password']):
+        return jsonify({'error': 'Неверный текущий пароль'}), 400
+    
+    # Проверить совпадение нового пароля
+    if data['new_password'] != data['confirm_password']:
+        return jsonify({'error': 'Пароли не совпадают'}), 400
+    
+    # Проверить минимальную длину пароля
+    if len(data['new_password']) < 6:
+        return jsonify({'error': 'Пароль должен содержать минимум 6 символов'}), 400
+    
+    # Обновить пароль
+    mechanic.password_hash = generate_password_hash(data['new_password'])
+    mechanic.updated_at = datetime.utcnow()
+    db.session.commit()
+    
+    return jsonify({'message': 'Пароль успешно изменён'})
