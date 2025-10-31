@@ -1,14 +1,15 @@
 import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { Toaster } from 'sonner';
-import { useEffect } from 'react';
+import { useEffect, lazy, Suspense } from 'react';
 import ErrorBoundary from './components/ErrorBoundary';
 import ProtectedRoute from './components/ProtectedRoute';
 import MechanicLayout from './components/mechanic/MechanicLayout';
-import MechanicLogin from './pages/MechanicLogin';
-import MechanicDashboard from './pages/MechanicDashboard';
-import OrderDetails from './pages/OrderDetails';
-import MechanicTimeHistory from './pages/MechanicTimeHistory';
-import MechanicProfile from './pages/MechanicProfile';
+
+const MechanicLogin = lazy(() => import('./pages/MechanicLogin'));
+const MechanicDashboard = lazy(() => import('./pages/MechanicDashboard'));
+const OrderDetails = lazy(() => import('./pages/OrderDetails'));
+const MechanicTimeHistory = lazy(() => import('./pages/MechanicTimeHistory'));
+const MechanicProfile = lazy(() => import('./pages/MechanicProfile'));
 
 function DeeplinkHandler() {
   const location = useLocation();
@@ -33,28 +34,41 @@ function DeeplinkHandler() {
   return null;
 }
 
+function LoadingFallback() {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="text-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+        <p className="text-gray-600">Загрузка...</p>
+      </div>
+    </div>
+  );
+}
+
 function App() {
   return (
     <ErrorBoundary>
       <BrowserRouter>
         <DeeplinkHandler />
-        <Routes>
-          <Route path="/" element={<Navigate to="/mechanic/login" replace />} />
-          <Route path="/mechanic/login" element={<MechanicLogin />} />
-          <Route
-            path="/mechanic"
-            element={
-              <ProtectedRoute>
-                <MechanicLayout />
-              </ProtectedRoute>
-            }
-          >
-            <Route path="dashboard" element={<MechanicDashboard />} />
-            <Route path="orders/:id" element={<OrderDetails />} />
-            <Route path="time" element={<MechanicTimeHistory />} />
-            <Route path="profile" element={<MechanicProfile />} />
-          </Route>
-        </Routes>
+        <Suspense fallback={<LoadingFallback />}>
+          <Routes>
+            <Route path="/" element={<Navigate to="/mechanic/login" replace />} />
+            <Route path="/mechanic/login" element={<MechanicLogin />} />
+            <Route
+              path="/mechanic"
+              element={
+                <ProtectedRoute>
+                  <MechanicLayout />
+                </ProtectedRoute>
+              }
+            >
+              <Route path="dashboard" element={<MechanicDashboard />} />
+              <Route path="orders/:id" element={<OrderDetails />} />
+              <Route path="time" element={<MechanicTimeHistory />} />
+              <Route path="profile" element={<MechanicProfile />} />
+            </Route>
+          </Routes>
+        </Suspense>
         <Toaster position="top-center" />
       </BrowserRouter>
     </ErrorBoundary>
