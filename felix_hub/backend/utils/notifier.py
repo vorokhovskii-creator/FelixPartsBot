@@ -4,6 +4,8 @@ import requests
 from typing import Optional
 from time import sleep
 import logging
+import hashlib
+from datetime import datetime, timedelta
 
 # Import translations from bot
 bot_path = os.path.join(os.path.dirname(__file__), '../../bot')
@@ -19,6 +21,7 @@ logger = logging.getLogger(__name__)
 
 BOT_TOKEN = os.getenv('BOT_TOKEN')
 TELEGRAM_API_URL = f"https://api.telegram.org/bot{BOT_TOKEN}"
+FRONTEND_URL = os.getenv('FRONTEND_URL', 'https://felix-hub.example.com')
 
 
 def send_telegram_notification(chat_id: str, message: str, parse_mode: str = 'HTML') -> bool:
@@ -194,3 +197,165 @@ def send_with_retry(chat_id: str, message: str, max_retries: int = 3) -> bool:
             logger.info(f"Повторная попытка {attempt + 1}/{max_retries}")
     
     return False
+
+
+def _generate_message_hash(notification_type: str, order_id: int, mechanic_id: int) -> str:
+    """Генерация хеша для защиты от дублирования уведомлений"""
+    content = f"{notification_type}:{order_id}:{mechanic_id}"
+    return hashlib.sha256(content.encode()).hexdigest()
+
+
+def _check_duplicate_notification(notification_type: str, order_id: int, mechanic_id: int, db_session) -> bool:
+    """
+    Проверка, не было ли уже отправлено такое уведомление за последние 15 минут
+    
+    Returns:
+        True если дубликат найден, False если уведомление можно отправить
+    """
+    try:
+        from models import NotificationLog
+        
+        message_hash = _generate_message_hash(notification_type, order_id, mechanic_id)
+        cutoff_time = datetime.utcnow() - timedelta(minutes=15)
+        
+        duplicate = NotificationLog.query.filter(
+            NotificationLog.message_hash == message_hash,
+            NotificationLog.sent_at > cutoff_time,
+            NotificationLog.success == True
+        ).first()
+        
+        return duplicate is not None
+    except Exception as e:
+        logger.warning(f"Error checking duplicate notification: {e}")
+        return False
+
+
+def _log_notification(notification_type: str, telegram_id: str, order_id: int = None, 
+                      mechanic_id: int = None, success: bool = True, 
+                      error_message: str = None, db_session=None):
+    """Логирование отправленного уведомления"""
+    try:
+        from models import NotificationLog
+        
+        message_hash = _generate_message_hash(notification_type, order_id or 0, mechanic_id or 0)
+        
+        log_entry = NotificationLog(
+            notification_type=notification_type,
+            order_id=order_id,
+            mechanic_id=mechanic_id,
+            telegram_id=telegram_id,
+            message_hash=message_hash,
+            success=success,
+            error_message=error_message
+        )
+        
+        if db_session:
+            db_session.add(log_entry)
+            db_session.commit()
+            logger.info(f"Notification logged: {notification_type} for mechanic {mechanic_id}, order {order_id}")
+    except Exception as e:
+        logger.error(f"Error logging notification: {e}")
+
+
+def _generate_deeplink(order_id: int, mechanic_token: str = None) -> str:
+    """Генерация deeplink для перехода к заказу"""
+    if mechanic_token:
+        return f"{FRONTEND_URL}/mechanic/orders/{order_id}?token={mechanic_token}"
+    return f"{FRONTEND_URL}/mechanic/orders/{order_id}"
+
+
+def _generate_mechanic_token(mechanic_id: int, telegram_id: str) -> str:
+    """Генерация временного токена для механика"""
+    import jwt
+    import time
+    
+    secret_key = os.getenv('SECRET_KEY', 'dev-secret-key')
+    
+    payload = {
+        'mechanic_id': mechanic_id,
+        'telegram_id': telegram_id,
+        'exp': int(time.time()) + 86400  # 24 hours
+    }
+    
+    token = jwt.encode(payload, secret_key, algorithm='HS256')
+    return token
+
+
+def notify_mechanic_assignment(order, mechanic, is_reassignment: bool = False, db_session=None) -> bool:
+    """
+    Уведомление механика о назначении или переназначении заказа
+    
+    Args:
+        order: Объект Order
+        mechanic: Объект Mechanic
+        is_reassignment: True если это переназначение
+        db_session: SQLAlchemy session для логирования
+        
+    Returns:
+        bool: True если уведомление отправлено успешно
+    """
+    notification_type = 'mechanic_reassignment' if is_reassignment else 'mechanic_assignment'
+    
+    # Проверка дубликата
+    if db_session and _check_duplicate_notification(notification_type, order.id, mechanic.id, db_session):
+        logger.info(f"Duplicate notification prevented: {notification_type} for order {order.id}, mechanic {mechanic.id}")
+        return True
+    
+    # Получить telegram_id механика
+    telegram_id = mechanic.telegram_id
+    
+    if not telegram_id:
+        logger.warning(f"Mechanic {mechanic.id} has no telegram_id, notification skipped")
+        if db_session:
+            _log_notification(notification_type, '', order.id, mechanic.id, 
+                            success=False, error_message="No telegram_id", db_session=db_session)
+        return False
+    
+    # Генерация токена для автологина
+    try:
+        mechanic_token = _generate_mechanic_token(mechanic.id, telegram_id)
+    except Exception as e:
+        logger.error(f"Error generating mechanic token: {e}")
+        mechanic_token = None
+    
+    # Генерация deeplink
+    deeplink = _generate_deeplink(order.id, mechanic_token)
+    
+    # Формирование сообщения
+    action_text = "переназначен" if is_reassignment else "назначен"
+    emoji = "🔄" if is_reassignment else "🔔"
+    
+    parts_list = "\n".join([f"  • {part}" for part in order.selected_parts[:5]])
+    if len(order.selected_parts) > 5:
+        parts_list += f"\n  ... и ещё {len(order.selected_parts) - 5}"
+    
+    message = (
+        f"{emoji} <b>Новый заказ {action_text} на вас!</b>\n\n"
+        f"📋 Заказ №{order.id}\n"
+        f"🚗 VIN: {order.vin}\n"
+        f"📦 Категория: {order.category}\n\n"
+        f"<b>Запчасти:</b>\n{parts_list}\n\n"
+        f"🔗 <a href='{deeplink}'>Открыть заказ в приложении</a>"
+    )
+    
+    # Отправка уведомления
+    success = send_telegram_notification(telegram_id, message)
+    
+    # Логирование
+    if db_session:
+        _log_notification(
+            notification_type, 
+            telegram_id, 
+            order.id, 
+            mechanic.id, 
+            success=success,
+            error_message=None if success else "Failed to send",
+            db_session=db_session
+        )
+    
+    if success:
+        logger.info(f"Assignment notification sent for order {order.id} to mechanic {mechanic.id}")
+    else:
+        logger.warning(f"Failed to send assignment notification for order {order.id} to mechanic {mechanic.id}")
+    
+    return success

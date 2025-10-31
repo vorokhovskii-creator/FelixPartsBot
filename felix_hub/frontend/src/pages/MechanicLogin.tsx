@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -21,6 +21,7 @@ type LoginForm = z.infer<typeof loginSchema>;
 export default function MechanicLogin() {
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   
   const { register, handleSubmit, formState: { errors } } = useForm<LoginForm>({
     resolver: zodResolver(loginSchema),
@@ -30,8 +31,46 @@ export default function MechanicLogin() {
     const token = localStorage.getItem('mechanic_token');
     if (token) {
       navigate('/mechanic/dashboard');
+      return;
     }
-  }, [navigate]);
+
+    // Check for deeplink token in URL params
+    const deeplinkToken = searchParams.get('token');
+    const redirectOrderId = searchParams.get('order');
+    
+    if (deeplinkToken) {
+      handleDeeplinkLogin(deeplinkToken, redirectOrderId);
+    }
+  }, [navigate, searchParams]);
+
+  const handleDeeplinkLogin = async (token: string, orderId: string | null) => {
+    setIsLoading(true);
+    
+    try {
+      const response = await api.post('/mechanic/token-login', { token });
+      
+      // Save token and mechanic data
+      localStorage.setItem('mechanic_token', response.data.token);
+      localStorage.setItem('mechanic', JSON.stringify(response.data.mechanic));
+      
+      toast.success('Вход выполнен успешно');
+      
+      // Redirect to order page if orderId provided
+      if (orderId) {
+        navigate(`/mechanic/orders/${orderId}`);
+      } else {
+        navigate('/mechanic/dashboard');
+      }
+    } catch (error) {
+      if (error instanceof AxiosError && error.response?.data?.error) {
+        toast.error(`Ошибка автологина: ${error.response.data.error}`);
+      } else {
+        toast.error('Ошибка автологина. Войдите вручную.');
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const onSubmit = async (data: LoginForm) => {
     setIsLoading(true);

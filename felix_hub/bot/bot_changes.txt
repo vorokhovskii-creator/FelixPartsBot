@@ -1,0 +1,159 @@
+# This file contains the necessary bot changes to add to bot.py
+
+# 1. In the start() function, add deeplink handling after line 111:
+    # Check for deeplink payload (e.g., /start order_123)
+    if context.args and len(context.args) > 0:
+        payload = context.args[0]
+        if payload.startswith('order_'):
+            try:
+                order_id = int(payload.replace('order_', ''))
+                await handle_deeplink(update, context, order_id)
+                return
+            except ValueError:
+                logger.warning(f"Invalid order deeplink payload: {payload}")
+
+# 2. Add these two new functions before error_handler (around line 663):
+
+async def handle_deeplink(update: Update, context: ContextTypes.DEFAULT_TYPE, order_id: int):
+    """Обработать deeplink на заказ"""
+    lang = context.user_data.get('language', 'ru')
+    telegram_id = str(update.effective_user.id)
+    
+    try:
+        # Проверить, является ли пользователь механиком
+        response = requests.get(
+            f"{BACKEND_URL}/api/admin/mechanics",
+            timeout=10
+        )
+        
+        if response.status_code == 200:
+            mechanics = response.json()
+            mechanic = next((m for m in mechanics if m.get('telegram_id') == telegram_id), None)
+            
+            if not mechanic:
+                await update.message.reply_text(get_text('not_a_mechanic', lang))
+                return
+            
+            # Получить заказ
+            order_response = requests.get(
+                f"{BACKEND_URL}/api/orders/{order_id}",
+                timeout=10
+            )
+            
+            if order_response.status_code == 200:
+                order = order_response.json()
+                
+                # Сформировать информацию о заказе
+                parts_list = "\n".join([f"  • {part}" for part in order['selected_parts']])
+                
+                message = (
+                    f"🔗 <b>Заказ #{order['id']}</b>\n\n"
+                    f"🚗 <b>VIN:</b> {order['vin']}\n"
+                    f"📦 <b>Категория:</b> {order['category']}\n"
+                    f"📋 <b>Статус:</b> {order['status']}\n\n"
+                    f"<b>Запчасти:</b>\n{parts_list}\n\n"
+                    f"🔗 Откройте приложение для работы с заказом"
+                )
+                
+                await update.message.reply_text(message, parse_mode='HTML')
+            else:
+                await update.message.reply_text(f"❌ Заказ #{order_id} не найден")
+        else:
+            await update.message.reply_text("❌ Ошибка загрузки данных")
+            
+    except Exception as e:
+        logger.error(f"Error handling deeplink: {e}")
+        await update.message.reply_text("❌ Ошибка обработки ссылки")
+
+
+async def myorders_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Команда /myorders - показать назначенные заказы механика"""
+    lang = context.user_data.get('language', 'ru')
+    telegram_id = str(update.effective_user.id)
+    
+    try:
+        # Найти механика по telegram_id
+        response = requests.get(
+            f"{BACKEND_URL}/api/admin/mechanics",
+            timeout=10
+        )
+        
+        if response.status_code != 200:
+            await update.message.reply_text(get_text('orders_load_error', lang))
+            return
+        
+        mechanics = response.json()
+        mechanic = next((m for m in mechanics if m.get('telegram_id') == telegram_id), None)
+        
+        if not mechanic:
+            await update.message.reply_text(get_text('not_a_mechanic', lang))
+            return
+        
+        # Получить заказы механика
+        orders_response = requests.get(
+            f"{BACKEND_URL}/api/orders",
+            params={"assigned_mechanic_id": mechanic['id']},
+            timeout=10
+        )
+        
+        if orders_response.status_code != 200:
+            await update.message.reply_text(get_text('orders_load_error', lang))
+            return
+        
+        orders = orders_response.json()
+        
+        if not orders:
+            await update.message.reply_text(get_text('no_assigned_orders', lang))
+            return
+        
+        # Формирование списка заказов с deeplinks
+        text = get_text('my_assigned_orders', lang)
+        
+        # Генерация токена для deeplink
+        import jwt
+        import time
+        import os
+        
+        secret_key = os.getenv('SECRET_KEY', 'dev-secret-key')
+        payload = {
+            'mechanic_id': mechanic['id'],
+            'telegram_id': telegram_id,
+            'exp': int(time.time()) + 86400  # 24 hours
+        }
+        mechanic_token = jwt.encode(payload, secret_key, algorithm='HS256')
+        
+        frontend_url = os.getenv('FRONTEND_URL', 'https://felix-hub.example.com')
+        
+        for order in orders[:10]:  # Ограничить 10 заказами
+            status_emoji = {
+                'новый': '🆕',
+                'назначен': '📌',
+                'в работе': '⏳',
+                'завершен': '✅',
+                'на паузе': '⏸️'
+            }
+            
+            emoji = status_emoji.get(order.get('work_status', order.get('status')), '❓')
+            deeplink = f"{frontend_url}/mechanic/orders/{order['id']}?token={mechanic_token}"
+            
+            text += get_text('assigned_order_item', lang,
+                emoji=emoji,
+                order_id=order['id'],
+                vin=order['vin'],
+                status=order.get('work_status', order.get('status')),
+                date=order.get('created_at', '')[:10],
+                deeplink=deeplink
+            )
+        
+        if len(orders) > 10:
+            text += f"\n... и ещё {len(orders) - 10} заказов"
+        
+        await update.message.reply_text(text, parse_mode='HTML', disable_web_page_preview=True)
+        
+    except Exception as e:
+        logger.error(f"Error in myorders command: {e}")
+        await update.message.reply_text(get_text('orders_load_error', lang))
+
+
+# 3. In setup_handlers(), after line 724 (after CommandHandler("start", start)), add:
+    application.add_handler(CommandHandler("myorders", myorders_command))

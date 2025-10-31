@@ -223,6 +223,31 @@ TRANSLATIONS = {
         'ru': '✅ <b>Заказ №{order_id} готов!</b>\n\n📦 <b>Детали:</b>\n{parts}\n\n🚗 <b>VIN:</b> {vin}\n📅 <b>Дата заказа:</b> {date}\n\nЗабери запчасти у кладовщика! 🔧',
         'he': '✅ <b>הזמנה מס\' {order_id} מוכנה!</b>\n\n📦 <b>חלקים:</b>\n{parts}\n\n🚗 <b>VIN:</b> {vin}\n📅 <b>תאריך הזמנה:</b> {date}\n\nקח את החלפים מהמחסנאי! 🔧',
         'en': '✅ <b>Order #{order_id} is ready!</b>\n\n📦 <b>Parts:</b>\n{parts}\n\n🚗 <b>VIN:</b> {vin}\n📅 <b>Order date:</b> {date}\n\nPick up parts from warehouse! 🔧'
+    },
+    'my_assigned_orders': {
+        'ru': '📋 <b>Ваши назначенные заказы:</b>\n\n',
+        'he': '📋 <b>ההזמנות שהוקצו לך:</b>\n\n',
+        'en': '📋 <b>Your assigned orders:</b>\n\n'
+    },
+    'no_assigned_orders': {
+        'ru': '📭 У вас пока нет назначенных заказов.',
+        'he': '📭 אין לך הזמנות שהוקצו כרגע.',
+        'en': '📭 You have no assigned orders yet.'
+    },
+    'assigned_order_item': {
+        'ru': '{emoji} <b>Заказ #{order_id}</b>\n🚗 VIN: {vin}\n📦 Статус: {status}\n📅 Назначен: {date}\n🔗 <a href="{deeplink}">Открыть</a>\n',
+        'he': '{emoji} <b>הזמנה #{order_id}</b>\n🚗 VIN: {vin}\n📦 סטטוס: {status}\n📅 הוקצה: {date}\n🔗 <a href="{deeplink}">פתח</a>\n',
+        'en': '{emoji} <b>Order #{order_id}</b>\n🚗 VIN: {vin}\n📦 Status: {status}\n📅 Assigned: {date}\n🔗 <a href="{deeplink}">Open</a>\n'
+    },
+    'not_a_mechanic': {
+        'ru': '❌ Вы не зарегистрированы как механик в системе. Обратитесь к администратору.',
+        'he': '❌ אתה לא רשום כמכונאי במערכת. פנה למנהל.',
+        'en': '❌ You are not registered as a mechanic in the system. Contact administrator.'
+    },
+    'opening_order': {
+        'ru': '🔗 Открываю заказ #{order_id}...',
+        'he': '🔗 פותח הזמנה #{order_id}...',
+        'en': '🔗 Opening order #{order_id}...'
     }
 }
 
