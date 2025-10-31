@@ -20,13 +20,19 @@
                     <button type="button" class="btn btn-sm btn-outline-light lang-btn" data-lang="en" onclick="setLanguage('en')">🇬🇧</button>
                 </div>
                 
+                <a href="#mechanics" class="btn btn-info me-2" onclick="showSection('mechanics')">
+                    👨‍🔧 Механики
+                </a>
+                <a href="#orders" class="btn btn-info me-2" onclick="showSection('orders')">
+                    📋 Заказы
+                </a>
                 <a href="/catalog" class="btn btn-info me-2">
                     📦 Каталог
                 </a>
                 <button class="btn btn-success me-2" onclick="exportOrders()">
                     <span data-i18n="export_excel">📤 Экспорт в Excel</span>
                 </button>
-                <button class="btn btn-primary" onclick="loadOrders()">
+                <button class="btn btn-primary" onclick="refreshCurrentSection()">
                     <span data-i18n="refresh">🔄 Обновить</span>
                 </button>
             </div>
@@ -34,6 +40,28 @@
     </nav>
 
     <div class="container-fluid mt-4">
+        <!-- Секция механиков -->
+        <div id="mechanics-section" class="section" style="display: none;">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2>👨‍🔧 Управление механиками</h2>
+                <button class="btn btn-primary" onclick="openMechanicModal()">
+                    + Добавить механика
+                </button>
+            </div>
+            
+            <div id="mechanics-list" class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
+                <div class="col">
+                    <div class="text-center">
+                        <div class="spinner-border" role="status">
+                            <span class="visually-hidden">Загрузка...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Секция заказов -->
+        <div id="orders-section" class="section">
         <!-- Статистика -->
         <div class="row mb-4">
             <div class="col-md-3">
@@ -135,6 +163,7 @@
                 </div>
             </div>
         </div>
+        </div>
     </div>
 
     <!-- Модальное окно деталей заказа -->
@@ -152,6 +181,77 @@
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
                         <span data-i18n="close">Закрыть</span>
                     </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модальное окно механика -->
+    <div class="modal fade" id="mechanicModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="mechanicModalTitle">Новый механик</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="mechanic-form">
+                        <input type="hidden" id="mechanic-id" name="id">
+                        <div class="mb-3">
+                            <label for="mechanic-name" class="form-label">ФИО *</label>
+                            <input type="text" class="form-control" id="mechanic-name" name="name" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="mechanic-email" class="form-label">Email *</label>
+                            <input type="email" class="form-control" id="mechanic-email" name="email" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="mechanic-password" class="form-label">Пароль <span id="password-required-label">*</span></label>
+                            <input type="password" class="form-control" id="mechanic-password" name="password">
+                            <small class="form-text text-muted" id="password-help">Минимум 6 символов. При редактировании - оставьте пустым, чтобы не менять.</small>
+                        </div>
+                        <div class="mb-3">
+                            <label for="mechanic-phone" class="form-label">Телефон</label>
+                            <input type="tel" class="form-control" id="mechanic-phone" name="phone">
+                        </div>
+                        <div class="mb-3">
+                            <label for="mechanic-specialty" class="form-label">Специализация</label>
+                            <input type="text" class="form-control" id="mechanic-specialty" name="specialty" placeholder="Например: Моторист, Электрик">
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                    <button type="button" class="btn btn-primary" onclick="saveMechanic()">Сохранить</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Модальное окно назначения заказа -->
+    <div class="modal fade" id="assignModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Назначить механика</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" id="assign-order-id">
+                    <div class="mb-3">
+                        <label for="assign-mechanic-select" class="form-label">Выберите механика:</label>
+                        <select class="form-select" id="assign-mechanic-select" required>
+                            <option value="">Выберите механика...</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="assign-notes" class="form-label">Заметки (опционально):</label>
+                        <textarea class="form-control" id="assign-notes" rows="3"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                    <button type="button" class="btn btn-primary" onclick="confirmAssignOrder()">Назначить</button>
                 </div>
             </div>
         </div>
