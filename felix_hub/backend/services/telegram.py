@@ -149,6 +149,130 @@ def _send_telegram_message(chat_id: str, message: str, parse_mode: str = 'HTML')
     return False
 
 
+def _is_mechanic_notifs_enabled() -> bool:
+    """Check if mechanic status change notifications are enabled."""
+    return os.getenv('ENABLE_TG_MECH_NOTIFS', 'false').lower() in ('true', '1', 'yes')
+
+
+def _generate_mechanic_order_link(order_id: int) -> str:
+    """Generate link to mechanic order page."""
+    base_url = _get_frontend_url().rstrip('/')
+    return f"{base_url}/#/mechanic/orders/{order_id}"
+
+
+def notify_mechanic_status_change(order, old_status: str, new_status: str, mechanic, db_session=None) -> bool:
+    """
+    Notify mechanic about order status change.
+    
+    Args:
+        order: Order object from database
+        old_status: Previous status
+        new_status: New status
+        mechanic: Mechanic object from database
+        db_session: Optional database session for logging
+        
+    Returns:
+        bool: True if notification sent successfully, False otherwise
+    """
+    if not _is_mechanic_notifs_enabled():
+        logger.debug("Mechanic notifications disabled via ENABLE_TG_MECH_NOTIFS flag")
+        return True
+    
+    if not mechanic:
+        logger.warning(f"No mechanic assigned to order {order.id}, notification skipped")
+        return False
+    
+    telegram_id = mechanic.telegram_id
+    if not telegram_id:
+        logger.warning(f"Mechanic {mechanic.id} ({mechanic.name}) has no telegram_id, notification skipped for order {order.id}")
+        if db_session:
+            try:
+                from models import NotificationLog
+                log_entry = NotificationLog(
+                    notification_type='mechanic_status_change',
+                    order_id=order.id,
+                    mechanic_id=mechanic.id,
+                    telegram_id='',
+                    message_hash=f"mechanic_status_change:{order.id}:{mechanic.id}:{new_status}",
+                    success=False,
+                    error_message="Mechanic has no telegram_id"
+                )
+                db_session.add(log_entry)
+                db_session.commit()
+            except Exception as e:
+                logger.error(f"Error logging missing telegram_id: {e}")
+        return False
+    
+    bot_token = _get_bot_token()
+    if not bot_token:
+        logger.error("TELEGRAM_BOT_TOKEN not configured")
+        return False
+    
+    try:
+        # Status emoji mapping
+        status_emoji = {
+            'новый': '🆕',
+            'в работе': '⏳',
+            'готов': '✅',
+            'выдан': '📦'
+        }
+        emoji = status_emoji.get(new_status, '❓')
+        
+        # Format order details
+        parts_text, car_identifier = _format_order_summary(order)
+        mechanic_link = _generate_mechanic_order_link(order.id)
+        
+        # Build message
+        message = (
+            f"{emoji} <b>Статус заказа изменён</b>\n\n"
+            f"📋 <b>Заказ #{order.id}</b>\n"
+            f"🚗 <b>Номер авто:</b> {car_identifier}\n"
+            f"📂 <b>Категория:</b> {order.category}\n\n"
+            f"<b>Было:</b> <i>{old_status}</i>\n"
+            f"<b>Стало:</b> <b>{new_status}</b>\n\n"
+            f"<b>Запчасти:</b>\n{parts_text}\n\n"
+            f"🔗 <a href='{mechanic_link}'>Открыть заказ</a>"
+        )
+        
+        # Send notification with retry logic
+        success = _send_telegram_message(telegram_id, message)
+        
+        # Log notification
+        if db_session:
+            try:
+                from models import NotificationLog
+                log_entry = NotificationLog(
+                    notification_type='mechanic_status_change',
+                    order_id=order.id,
+                    mechanic_id=mechanic.id,
+                    telegram_id=telegram_id,
+                    message_hash=f"mechanic_status_change:{order.id}:{mechanic.id}:{new_status}",
+                    success=success,
+                    error_message=None if success else "Failed to send"
+                )
+                db_session.add(log_entry)
+                db_session.commit()
+                logger.info(f"Mechanic notification logged for order {order.id}")
+            except Exception as e:
+                logger.error(f"Error logging mechanic notification: {e}")
+                # Don't rollback the main transaction
+        
+        if success:
+            logger.info(
+                f"Mechanic notification sent successfully for order {order.id} "
+                f"to mechanic {mechanic.id} ({mechanic.name})"
+            )
+            return True
+        else:
+            logger.error(f"Failed to notify mechanic {mechanic.id} about order {order.id}")
+            return False
+            
+    except Exception as e:
+        logger.error(f"Error in notify_mechanic_status_change for order {order.id}: {e}")
+        # Don't raise - we don't want to break status update
+        return False
+
+
 def notify_admin_new_order(order, db_session=None) -> bool:
     """
     Notify admin chat(s) about a new order.
