@@ -15,7 +15,7 @@ eggs/
 .eggs/
 # lib/ - commented out to allow frontend/src/lib
 lib64/
-parts/
+# parts/ - Python build artifacts - commented out to allow frontend/src/features/parts
 sdist/
 var/
 wheels/
