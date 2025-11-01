@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
+import { HashRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { Toaster } from 'sonner';
 import { useEffect, lazy, Suspense } from 'react';
 import ErrorBoundary from './components/ErrorBoundary';
@@ -49,7 +49,7 @@ function LoadingFallback() {
 function App() {
   return (
     <ErrorBoundary>
-      <BrowserRouter>
+      <HashRouter>
         <DeeplinkHandler />
         <Suspense fallback={<LoadingFallback />}>
           <Routes>
@@ -79,7 +79,7 @@ function App() {
           </Routes>
         </Suspense>
         <Toaster position="top-center" />
-      </BrowserRouter>
+      </HashRouter>
     </ErrorBoundary>
   );
 }

@@ -259,9 +259,13 @@ def _log_notification(notification_type: str, telegram_id: str, order_id: int = 
 
 def _generate_deeplink(order_id: int, mechanic_token: str = None) -> str:
     """Генерация deeplink для перехода к заказу"""
+    base_url = FRONTEND_URL.rstrip('/')
+    path = f"/mechanic/orders/{order_id}"
+
     if mechanic_token:
-        return f"{FRONTEND_URL}/mechanic/orders/{order_id}?token={mechanic_token}"
-    return f"{FRONTEND_URL}/mechanic/orders/{order_id}"
+        path = f"{path}?token={mechanic_token}"
+
+    return f"{base_url}/#{path}"
 
 
 def _generate_mechanic_token(mechanic_id: int, telegram_id: str) -> str:
