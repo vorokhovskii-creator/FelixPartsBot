@@ -129,3 +129,11 @@ export interface Part {
   sort_order: number;
   created_at: string;
 }
+
+export interface SelectedPart {
+  id?: number;
+  name: string;
+  quantity?: number;
+  price?: number;
+  isCustom: boolean;
+}

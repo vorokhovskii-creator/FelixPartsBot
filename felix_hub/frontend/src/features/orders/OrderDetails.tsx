@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { ArrowLeft, Clock as ClockIcon } from 'lucide-react';
+import { ArrowLeft, Clock as ClockIcon, Package } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -226,9 +226,13 @@ export default function OrderDetails({ orderId, onBack }: OrderDetailsProps) {
             )}
 
             {order.custom_parts && order.custom_parts.length > 0 && (
-              <Card>
+              <Card className="bg-amber-50 border-amber-500">
                 <CardHeader>
-                  <CardTitle>Дополнительные запчасти</CardTitle>
+                  <div className="flex items-center gap-2">
+                    <Package className="h-5 w-5 text-amber-600" />
+                    <CardTitle>Дополнительные запчасти</CardTitle>
+                    <Badge className="bg-amber-200 text-amber-800">Кастомные</Badge>
+                  </div>
                 </CardHeader>
                 <CardContent className="space-y-2">
                   {order.custom_parts.map((part) => (
