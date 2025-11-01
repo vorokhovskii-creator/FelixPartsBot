@@ -84,6 +84,7 @@ environment_name = (os.getenv('ENVIRONMENT') or os.getenv('APP_ENV') or os.geten
 default_enable_car_number = environment_name in ('staging', 'development', 'dev', 'testing', 'test')
 ENABLE_CAR_NUMBER = str_to_bool(os.getenv('ENABLE_CAR_NUMBER'), default=default_enable_car_number)
 ALLOW_ANY_CAR_NUMBER = str_to_bool(os.getenv('ALLOW_ANY_CAR_NUMBER'), default=False)
+ENABLE_PART_CATEGORIES = str_to_bool(os.getenv('ENABLE_PART_CATEGORIES'), default=False)
 CAR_NUMBER_REGEX = re.compile(r'^[A-Za-z0-9]{4,10}$')
 
 
@@ -104,12 +105,290 @@ def is_valid_car_number(value: str | None) -> bool:
 
 app.config['ENABLE_CAR_NUMBER'] = ENABLE_CAR_NUMBER
 app.config['ALLOW_ANY_CAR_NUMBER'] = ALLOW_ANY_CAR_NUMBER
+app.config['ENABLE_PART_CATEGORIES'] = ENABLE_PART_CATEGORIES
 
 logger.info(
-    "Car number feature configuration: ENABLE_CAR_NUMBER=%s, ALLOW_ANY_CAR_NUMBER=%s",
+    "Feature configuration: ENABLE_CAR_NUMBER=%s, ALLOW_ANY_CAR_NUMBER=%s, ENABLE_PART_CATEGORIES=%s",
     ENABLE_CAR_NUMBER,
-    ALLOW_ANY_CAR_NUMBER
+    ALLOW_ANY_CAR_NUMBER,
+    ENABLE_PART_CATEGORIES
 )
+
+ORDER_STATUS_SEQUENCE = ['новый', 'в работе', 'готов', 'выдан']
+
+DEFAULT_CANONICAL_PART_CATEGORIES = OrderedDict([
+    ("🔧 Тормоза", [
+        "Передние колодки",
+        "Задние колодки",
+        "Диски передние",
+        "Диски задние",
+        "Тормозная жидкость",
+        "Суппорт передний",
+        "Суппорт задний"
+    ]),
+    ("⚙️ Двигатель", [
+        "Масло моторное",
+        "Масляный фильтр",
+        "Воздушный фильтр",
+        "Свечи зажигания",
+        "Ремень ГРМ",
+        "Помпа",
+        "Термостат"
+    ]),
+    ("🔩 Подвеска", [
+        "Амортизаторы передние",
+        "Амортизаторы задние",
+        "Стойки",
+        "Рычаги передние",
+        "Сайлентблоки",
+        "Шаровые опоры",
+        "Стойки стабилизатора"
+    ]),
+    ("⚡ Электрика", [
+        "Аккумулятор",
+        "Генератор",
+        "Стартер",
+        "Проводка",
+        "Предохранители",
+        "Датчики",
+        "Лампы"
+    ]),
+    ("💧 Расходники", [
+        "Фильтр салона",
+        "Щетки стеклоочистителя",
+        "Антифриз",
+        "Омывающая жидкость",
+        "Тормозная жидкость",
+        "Масло трансмиссионное"
+    ])
+])
+
+_CANONICAL_PART_CATEGORIES_CACHE = None
+
+
+def get_canonical_part_catalog():
+    global _CANONICAL_PART_CATEGORIES_CACHE
+    if _CANONICAL_PART_CATEGORIES_CACHE is not None:
+        return _CANONICAL_PART_CATEGORIES_CACHE
+    categories = None
+    token_placeholder = None
+    try:
+        if not (os.getenv('TELEGRAM_TOKEN') or os.getenv('BOT_TOKEN')):
+            token_placeholder = 'TELEGRAM_TOKEN'
+            os.environ[token_placeholder] = 'stub-token'
+        from importlib import import_module
+        bot_config = import_module('bot.config')
+        categories = getattr(bot_config, 'CATEGORIES', None)
+    except Exception as exc:
+        logger.warning(f"Unable to load bot categories: {exc}")
+        categories = None
+    finally:
+        if token_placeholder:
+            os.environ.pop(token_placeholder, None)
+    if not categories:
+        categories = DEFAULT_CANONICAL_PART_CATEGORIES
+    else:
+        categories = OrderedDict(categories)
+    _CANONICAL_PART_CATEGORIES_CACHE = categories
+    return _CANONICAL_PART_CATEGORIES_CACHE
+
+
+def ensure_part_catalog_seeded():
+    categories_map = get_canonical_part_catalog()
+    changed = False
+    for sort_index, (display_name, part_names) in enumerate(categories_map.items(), start=1):
+        stripped = display_name.strip()
+        icon = ''
+        name_ru = stripped
+        if ' ' in stripped:
+            icon_candidate, name_candidate = stripped.split(' ', 1)
+            if icon_candidate:
+                icon = icon_candidate
+            name_ru = name_candidate or stripped
+        if not icon:
+            icon = '🔧'
+        category = Category.query.filter_by(name_ru=name_ru).first()
+        if not category:
+            category = Category(
+                name_ru=name_ru,
+                icon=icon,
+                sort_order=sort_index
+            )
+            db.session.add(category)
+            db.session.flush()
+            changed = True
+        else:
+            updated = False
+            if icon and category.icon != icon:
+                category.icon = icon
+                updated = True
+            if category.sort_order != sort_index:
+                category.sort_order = sort_index
+                updated = True
+            if updated:
+                changed = True
+        existing_parts = {part.name_ru: part for part in category.parts}
+        for part_order, part_name in enumerate(part_names, start=1):
+            part = existing_parts.get(part_name)
+            if not part:
+                db.session.add(Part(
+                    category_id=category.id,
+                    name_ru=part_name,
+                    is_common=True,
+                    sort_order=part_order
+                ))
+                changed = True
+            else:
+                updated = False
+                if part.sort_order != part_order:
+                    part.sort_order = part_order
+                    updated = True
+                if part.is_common is False:
+                    part.is_common = True
+                    updated = True
+                if updated:
+                    changed = True
+    if changed:
+        db.session.commit()
+
+
+def sanitize_legacy_parts_payload(parts_list):
+    if not isinstance(parts_list, list) or not parts_list:
+        raise ValueError('selected_parts должен быть непустым массивом')
+    sanitized = []
+    for part in parts_list:
+        if not isinstance(part, str) or not part.strip():
+            raise ValueError('selected_parts должен содержать строковые значения')
+        sanitized.append({
+            'partId': None,
+            'name': part.strip(),
+            'quantity': 1,
+            'price': None,
+            'isCustom': False,
+            'note': None
+        })
+    return sanitized
+
+
+def sanitize_parts_payload(parts_payload):
+    if not isinstance(parts_payload, list) or not parts_payload:
+        raise ValueError('parts должен быть непустым массивом')
+    sanitized = []
+    for index, raw in enumerate(parts_payload, start=1):
+        if not isinstance(raw, dict):
+            raise ValueError('Каждая запись в parts должна быть объектом')
+        part_id = raw.get('partId')
+        if part_id is not None:
+            try:
+                part_id = int(part_id)
+            except (TypeError, ValueError):
+                raise ValueError('partId должен быть числом')
+        is_custom = bool(raw.get('isCustom', False))
+        name_value = raw.get('name')
+        if isinstance(name_value, str):
+            name_value = name_value.strip()
+        note_value = raw.get('note')
+        if isinstance(note_value, str):
+            note_value = note_value.strip()
+        elif note_value is not None:
+            note_value = str(note_value)
+        if note_value == '':
+            note_value = None
+        quantity_raw = raw.get('quantity', 1)
+        try:
+            quantity = int(quantity_raw)
+        except (TypeError, ValueError):
+            raise ValueError('quantity должен быть целым числом')
+        if quantity <= 0:
+            raise ValueError('quantity должен быть положительным числом')
+        price_raw = raw.get('price')
+        if price_raw is not None:
+            try:
+                price = float(price_raw)
+            except (TypeError, ValueError):
+                raise ValueError('price должен быть числом')
+        else:
+            price = None
+        resolved_name = name_value if name_value else None
+        if is_custom:
+            if not resolved_name:
+                raise ValueError('name обязателен для кастомной детали')
+        else:
+            if part_id:
+                part = Part.query.get(part_id)
+                if not part:
+                    ensure_part_catalog_seeded()
+                    part = Part.query.get(part_id)
+                if not part:
+                    raise ValueError(f'Деталь с id {part_id} не найдена')
+                if not resolved_name:
+                    resolved_name = part.name_ru
+            elif not resolved_name:
+                raise ValueError('Для детали необходимо указать name или partId')
+        sanitized.append({
+            'partId': part_id,
+            'name': resolved_name,
+            'quantity': quantity,
+            'price': price,
+            'isCustom': is_custom,
+            'note': note_value
+        })
+    return sanitized
+
+def _build_orders_response():
+    query = Order.query
+
+    status = request.args.get('status')
+    if status:
+        query = query.filter_by(status=status)
+
+    mechanic = request.args.get('mechanic')
+    if mechanic:
+        query = query.filter_by(mechanic_name=mechanic)
+
+    telegram_id = request.args.get('telegram_id')
+    if telegram_id:
+        query = query.filter_by(telegram_id=telegram_id)
+
+    filtered_query = query
+    total = filtered_query.count()
+
+    summary_rows = (
+        filtered_query.with_entities(Order.status, db.func.count(Order.id))
+        .group_by(Order.status)
+        .all()
+    )
+
+    status_summary = OrderedDict((status_name, 0) for status_name in ORDER_STATUS_SEQUENCE)
+    for status_value, count in summary_rows:
+        if status_value in status_summary:
+            status_summary[status_value] = count
+        else:
+            status_summary[status_value] = count
+
+    limit = request.args.get('limit', 50, type=int)
+    offset = request.args.get('offset', 0, type=int)
+
+    orders = (
+        filtered_query.order_by(Order.created_at.desc())
+        .limit(limit)
+        .offset(offset)
+        .all()
+    )
+
+    return {
+        'orders': [order.to_dict() for order in orders],
+        'status_summary': dict(status_summary),
+        'total': total,
+        'limit': limit,
+        'offset': offset,
+        'feature_flags': {
+            'part_categories': ENABLE_PART_CATEGORIES
+        }
+    }
+
+
+
 
 
 # ВАЖНО: Создать таблицы сразу при импорте модуля
@@ -302,14 +581,23 @@ def create_order():
         if not data:
             return jsonify({'error': 'Невалидный JSON'}), 400
 
-        required_fields = ['mechanic_name', 'telegram_id', 'category', 'selected_parts']
+        required_fields = ['mechanic_name', 'telegram_id', 'category']
         for field in required_fields:
             if field not in data:
                 return jsonify({'error': f'Отсутствует обязательное поле: {field}'}), 400
 
-        selected_parts = data['selected_parts']
-        if not isinstance(selected_parts, list) or len(selected_parts) == 0:
-            return jsonify({'error': 'selected_parts должен быть непустым массивом'}), 400
+        parts_payload = data.get('parts')
+        legacy_parts_payload = data.get('selected_parts')
+
+        try:
+            if parts_payload is not None:
+                sanitized_parts = sanitize_parts_payload(parts_payload)
+            elif legacy_parts_payload is not None:
+                sanitized_parts = sanitize_legacy_parts_payload(legacy_parts_payload)
+            else:
+                return jsonify({'error': 'Необходимо указать parts или selected_parts'}), 400
+        except ValueError as exc:
+            return jsonify({'error': str(exc)}), 400
 
         car_number = None
         vin_value = None
@@ -353,7 +641,7 @@ def create_order():
             category=data['category'],
             vin=vin_value,
             car_number=car_number,
-            selected_parts=selected_parts,
+            selected_parts=sanitized_parts,
             is_original=data.get('is_original', False),
             photo_url=data.get('photo_url'),
             language=data.get('language', 'ru')

@@ -12,6 +12,31 @@ PRINTER_ENABLED = os.getenv('PRINTER_ENABLED', 'false').lower() == 'true'
 RECEIPT_WIDTH = int(os.getenv('RECEIPT_WIDTH', 32))  # 32 символа для 58мм, 48 для 80мм
 
 
+def _extract_part_names(order):
+    try:
+        names = order.get_part_names()
+        if names:
+            return names
+    except AttributeError:
+        pass
+    except Exception as exc:  # pragma: no cover - defensive
+        logger.debug(f"Unable to extract part names via get_part_names: {exc}")
+    raw_parts = getattr(order, 'selected_parts', []) or []
+    if isinstance(raw_parts, list):
+        names = []
+        for item in raw_parts:
+            if isinstance(item, dict):
+                value = item.get('name') or item.get('label')
+                if value:
+                    names.append(str(value))
+            else:
+                names.append(str(item))
+        return names
+    if raw_parts:
+        return [str(raw_parts)]
+    return []
+
+
 def print_order_receipt(order) -> bool:
     """
     Печатает чек заказа на термопринтере ESC/POS.
@@ -61,7 +86,8 @@ def print_order_receipt(order) -> bool:
         printer.text("Запчасти:\n")
         printer.set(bold=False)
         
-        for i, part in enumerate(order.selected_parts or [], 1):
+        part_names = _extract_part_names(order)
+        for i, part in enumerate(part_names, 1):
             # Перенос длинных названий
             lines = wrap_text(part, RECEIPT_WIDTH - 4)
             for j, line in enumerate(lines):
@@ -69,6 +95,8 @@ def print_order_receipt(order) -> bool:
                     printer.text(f"{i}. {line}\n")
                 else:
                     printer.text(f"   {line}\n")
+        if not part_names:
+            printer.text("—\n")
         
         printer.text("=" * RECEIPT_WIDTH + "\n")
         
@@ -239,8 +267,12 @@ def generate_order_pdf(order, output_path: Optional[str] = None) -> Optional[str
         y -= 8*mm
         
         c.setFont("Helvetica", 11)
-        for i, part in enumerate(order.selected_parts or [], 1):
+        part_names = _extract_part_names(order)
+        for i, part in enumerate(part_names, 1):
             c.drawString(50*mm, y, f"{i}. {part}")
+            y -= 6*mm
+        if not part_names:
+            c.drawString(50*mm, y, "—")
             y -= 6*mm
         
         y -= 5*mm

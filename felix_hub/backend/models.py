@@ -124,8 +124,112 @@ class Order(db.Model):
     def preferred_car_number(self):
         return self.car_number or self.vin
     
+    def _normalized_selected_parts(self):
+        items = []
+        raw_parts = self.selected_parts or []
+        if isinstance(raw_parts, list):
+            for raw in raw_parts:
+                if isinstance(raw, dict):
+                    part_id = raw.get('partId', raw.get('part_id'))
+                    if part_id is not None:
+                        try:
+                            part_id = int(part_id)
+                        except (TypeError, ValueError):
+                            part_id = None
+                    name = raw.get('name')
+                    if isinstance(name, str):
+                        name = name.strip()
+                    quantity_raw = raw.get('quantity', 1)
+                    try:
+                        quantity = int(quantity_raw)
+                    except (TypeError, ValueError):
+                        quantity = 1
+                    if quantity <= 0:
+                        quantity = 1
+                    price_raw = raw.get('price')
+                    if price_raw is not None:
+                        try:
+                            price = float(price_raw)
+                        except (TypeError, ValueError):
+                            price = None
+                    else:
+                        price = None
+                    is_custom = raw.get('isCustom', raw.get('is_custom', False))
+                    note_present = 'note' in raw
+                    note_value = raw.get('note')
+                    if note_value in (None, ''):
+                        alt_note = raw.get('description') or raw.get('part_number')
+                    else:
+                        alt_note = note_value
+                    item = {
+                        'partId': part_id,
+                        'name': name,
+                        'quantity': quantity,
+                        'price': price,
+                        'isCustom': bool(is_custom)
+                    }
+                    if alt_note not in (None, ''):
+                        item['note'] = str(alt_note)
+                    elif note_present:
+                        item['note'] = None
+                    custom_part_id = raw.get('customPartId', raw.get('custom_part_id'))
+                    if custom_part_id:
+                        try:
+                            item['customPartId'] = int(custom_part_id)
+                        except (TypeError, ValueError):
+                            pass
+                    items.append(item)
+                else:
+                    items.append({
+                        'partId': None,
+                        'name': str(raw),
+                        'quantity': 1,
+                        'price': None,
+                        'isCustom': False
+                    })
+        elif raw_parts:
+            items.append({
+                'partId': None,
+                'name': str(raw_parts),
+                'quantity': 1,
+                'price': None,
+                'isCustom': False
+            })
+        return items
+    
+    def get_part_names(self):
+        return [item['name'] for item in self._normalized_selected_parts() if item.get('name')]
+    
+    def get_parts_payload(self, include_custom_parts=True):
+        parts = self._normalized_selected_parts()
+        if include_custom_parts:
+            for custom_part in getattr(self, 'custom_parts', []):
+                quantity = custom_part.quantity or 1
+                try:
+                    quantity = int(quantity)
+                except (TypeError, ValueError):
+                    quantity = 1
+                price = custom_part.price
+                if price is not None:
+                    try:
+                        price = float(price)
+                    except (TypeError, ValueError):
+                        price = None
+                parts.append({
+                    'partId': None,
+                    'customPartId': custom_part.id,
+                    'name': custom_part.name,
+                    'quantity': quantity,
+                    'price': price,
+                    'isCustom': True,
+                    'note': custom_part.part_number
+                })
+        return parts
+    
     def to_dict(self):
-        part_name = ', '.join(self.selected_parts) if isinstance(self.selected_parts, list) else str(self.selected_parts)
+        parts_payload = self.get_parts_payload()
+        part_names = [p['name'] for p in parts_payload if p.get('name')]
+        part_name = ', '.join(part_names)
         part_type = 'Оригинал' if self.is_original else 'Аналог'
         preferred_car_number = self.preferred_car_number
         
@@ -137,7 +241,8 @@ class Order(db.Model):
             'vin': self.vin or preferred_car_number,
             'car_number': preferred_car_number,
             'carNumber': preferred_car_number,
-            'selected_parts': self.selected_parts,
+            'parts': parts_payload,
+            'selected_parts': part_names,
             'part_name': part_name,
             'part_type': part_type,
             'is_original': self.is_original,
