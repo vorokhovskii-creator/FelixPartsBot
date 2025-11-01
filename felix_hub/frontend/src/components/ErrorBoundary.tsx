@@ -92,7 +92,7 @@ class ErrorBoundary extends Component<Props, State> {
                   Попробовать снова
                 </Button>
                 <Button
-                  onClick={() => window.location.href = '/mechanic/dashboard'}
+                  onClick={() => window.location.href = '/#/mechanic/dashboard'}
                   className="flex-1"
                 >
                   На главную

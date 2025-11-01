@@ -28,7 +28,7 @@ api.interceptors.response.use(
     if (error.response?.status === 401) {
       localStorage.removeItem('mechanic_token');
       localStorage.removeItem('mechanic');
-      window.location.href = '/mechanic/login';
+      window.location.href = '/#/mechanic/login';
     }
     return Promise.reject(error);
   }
