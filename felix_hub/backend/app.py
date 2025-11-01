@@ -17,6 +17,9 @@ from werkzeug.security import generate_password_hash
 # Add backend directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+# Import centralized configuration
+import config
+
 from models import (db, Order, Category, Part, Mechanic, OrderComment, 
                     TimeLog, CustomWorkItem, CustomPartItem, WorkOrderAssignment, NotificationLog)
 from utils.notifier import notify_order_ready, notify_order_status_changed, notify_mechanic_assignment
@@ -572,6 +575,19 @@ def export_orders():
     except Exception as e:
         logger.error(f"Error exporting orders: {e}")
         return jsonify({'error': 'Ошибка экспорта заказов'}), 500
+
+
+@app.route('/api/config/feature-flags', methods=['GET'])
+def get_feature_flags():
+    """Return current feature flag configuration for frontend."""
+    return jsonify({
+        'ENABLE_CAR_NUMBER': config.ENABLE_CAR_NUMBER,
+        'ENABLE_PART_CATEGORIES': config.ENABLE_PART_CATEGORIES,
+        'ENABLE_TG_ADMIN_NOTIFS': config.ENABLE_TG_ADMIN_NOTIFS,
+        'ENABLE_TG_MECH_NOTIFS': config.ENABLE_TG_MECH_NOTIFS,
+        'ENABLE_MECH_I18N': config.ENABLE_MECH_I18N,
+        'ENABLE_UI_REFRESH': config.ENABLE_UI_REFRESH,
+    })
 
 
 @app.route('/api/orders', methods=['POST'])
