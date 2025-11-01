@@ -3,6 +3,9 @@ import os
 import tempfile
 sys.path.insert(0, os.path.dirname(__file__))
 
+os.environ.setdefault('ENABLE_CAR_NUMBER', 'true')
+os.environ.setdefault('ALLOW_ANY_CAR_NUMBER', 'false')
+
 def test_api():
     from app import app, db
     from models import Order
@@ -24,7 +27,7 @@ def test_api():
                 'mechanic_name': 'David',
                 'telegram_id': '12345678',
                 'category': 'Тормоза',
-                'vin': '4T1BE32K',
+                'carNumber': 'AB1234CD',
                 'selected_parts': ['Передние колодки', 'Диски передние'],
                 'is_original': False,
                 'photo_url': 'https://api.telegram.org/file/test.jpg'
@@ -34,6 +37,8 @@ def test_api():
         assert response.status_code == 201, f"Expected 201, got {response.status_code}"
         data = json.loads(response.data)
         order_id = data['id']
+        assert data['carNumber'] == 'AB1234CD', f"Expected carNumber AB1234CD, got {data['carNumber']}"
+        assert data['vin'] == 'AB1234CD', f"Expected vin AB1234CD, got {data['vin']}"
         print(f"✓ Order created with ID: {order_id}")
         
         print("\nTesting GET /api/orders...")
@@ -41,6 +46,7 @@ def test_api():
         assert response.status_code == 200, f"Expected 200, got {response.status_code}"
         data = json.loads(response.data)
         assert len(data) == 1, f"Expected 1 order, got {len(data)}"
+        assert data[0]['carNumber'] == 'AB1234CD', f"Expected list carNumber AB1234CD, got {data[0].get('carNumber')}"
         print(f"✓ Retrieved {len(data)} order(s)")
         
         print(f"\nTesting GET /api/orders/{order_id}...")
@@ -48,6 +54,7 @@ def test_api():
         assert response.status_code == 200, f"Expected 200, got {response.status_code}"
         data = json.loads(response.data)
         assert data['mechanic_name'] == 'David'
+        assert data['carNumber'] == 'AB1234CD'
         print(f"✓ Retrieved order {order_id}")
         
         print(f"\nTesting PATCH /api/orders/{order_id}...")
@@ -70,26 +77,49 @@ def test_api():
         assert response.status_code == 204, f"Expected 204, got {response.status_code}"
         print(f"✓ Deleted order {order_id}")
         
+        print("\nTesting backward compatibility with vin field...")
+        response = client.post('/api/orders',
+            data=json.dumps({
+                'mechanic_name': 'Legacy',
+                'telegram_id': '987',
+                'category': 'Test',
+                'vin': 'ZZ9900',
+                'selected_parts': ['LegacyPart']
+            }),
+            content_type='application/json'
+        )
+        assert response.status_code == 201, f"Expected 201 for legacy vin, got {response.status_code}"
+        legacy_data = json.loads(response.data)
+        assert legacy_data['carNumber'] == 'ZZ9900', f"Expected carNumber ZZ9900, got {legacy_data['carNumber']}"
+        assert legacy_data['vin'] == 'ZZ9900', f"Expected vin ZZ9900, got {legacy_data['vin']}"
+        print("✓ Legacy vin payload accepted")
+        legacy_order_id = legacy_data['id']
+
+        print(f"\nCleaning up legacy order {legacy_order_id}...")
+        response = client.delete(f'/api/orders/{legacy_order_id}')
+        assert response.status_code == 204, f"Expected 204 when cleaning legacy order, got {response.status_code}"
+        print("✓ Legacy order removed")
+
         print("\nTesting validation...")
         response = client.post('/api/orders',
             data=json.dumps({
                 'mechanic_name': 'Test',
                 'telegram_id': '123',
                 'category': 'Test',
-                'vin': 'ABC',
+                'carNumber': 'ABC',
                 'selected_parts': ['Part1']
             }),
             content_type='application/json'
         )
-        assert response.status_code == 400, f"Expected 400 for short VIN, got {response.status_code}"
-        print("✓ VIN validation working")
+        assert response.status_code == 400, f"Expected 400 for short car number, got {response.status_code}"
+        print("✓ carNumber length validation working")
         
         response = client.post('/api/orders',
             data=json.dumps({
                 'mechanic_name': 'Test',
                 'telegram_id': '123',
                 'category': 'Test',
-                'vin': 'ABCD1234',
+                'carNumber': 'ABCD1234',
                 'selected_parts': []
             }),
             content_type='application/json'

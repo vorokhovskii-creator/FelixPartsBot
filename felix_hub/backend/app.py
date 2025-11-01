@@ -1,6 +1,7 @@
 import os
 import sys
 import logging
+import re
 from datetime import datetime, timedelta
 from flask import Flask, request, jsonify, render_template, send_file
 from flask_cors import CORS
@@ -71,6 +72,44 @@ logging.basicConfig(
     ]
 )
 logger = logging.getLogger(__name__)
+
+
+def str_to_bool(value, default=False):
+    if value is None:
+        return default
+    return str(value).strip().lower() in ('1', 'true', 't', 'yes', 'y', 'on')
+
+
+environment_name = (os.getenv('ENVIRONMENT') or os.getenv('APP_ENV') or os.getenv('FLASK_ENV') or '').lower()
+default_enable_car_number = environment_name in ('staging', 'development', 'dev', 'testing', 'test')
+ENABLE_CAR_NUMBER = str_to_bool(os.getenv('ENABLE_CAR_NUMBER'), default=default_enable_car_number)
+ALLOW_ANY_CAR_NUMBER = str_to_bool(os.getenv('ALLOW_ANY_CAR_NUMBER'), default=False)
+CAR_NUMBER_REGEX = re.compile(r'^[A-Za-z0-9]{4,10}$')
+
+
+def normalize_car_number(value: str | None) -> str | None:
+    if value is None:
+        return None
+    normalized = value.strip().upper()
+    return normalized or None
+
+
+def is_valid_car_number(value: str | None) -> bool:
+    if value is None:
+        return False
+    if ALLOW_ANY_CAR_NUMBER:
+        return True
+    return CAR_NUMBER_REGEX.fullmatch(value) is not None
+
+
+app.config['ENABLE_CAR_NUMBER'] = ENABLE_CAR_NUMBER
+app.config['ALLOW_ANY_CAR_NUMBER'] = ALLOW_ANY_CAR_NUMBER
+
+logger.info(
+    "Car number feature configuration: ENABLE_CAR_NUMBER=%s, ALLOW_ANY_CAR_NUMBER=%s",
+    ENABLE_CAR_NUMBER,
+    ALLOW_ANY_CAR_NUMBER
+)
 
 
 # ВАЖНО: Создать таблицы сразу при импорте модуля
@@ -229,6 +268,7 @@ def export_orders():
                 'Дата': order.created_at.strftime('%d.%m.%Y %H:%M'),
                 'Механик': order.mechanic_name,
                 'Категория': order.category,
+                'Номер авто': order.preferred_car_number,
                 'VIN': order.vin,
                 'Детали': ', '.join(order.selected_parts),
                 'Оригинал': 'Да' if order.is_original else 'Нет',
@@ -258,39 +298,76 @@ def export_orders():
 def create_order():
     try:
         data = request.get_json()
-        
+
         if not data:
             return jsonify({'error': 'Невалидный JSON'}), 400
-        
-        required_fields = ['mechanic_name', 'telegram_id', 'category', 'vin', 'selected_parts']
+
+        required_fields = ['mechanic_name', 'telegram_id', 'category', 'selected_parts']
         for field in required_fields:
             if field not in data:
                 return jsonify({'error': f'Отсутствует обязательное поле: {field}'}), 400
-        
-        if not isinstance(data['selected_parts'], list) or len(data['selected_parts']) == 0:
+
+        selected_parts = data['selected_parts']
+        if not isinstance(selected_parts, list) or len(selected_parts) == 0:
             return jsonify({'error': 'selected_parts должен быть непустым массивом'}), 400
-        
-        if len(data['vin']) < 4:
-            return jsonify({'error': 'VIN должен содержать минимум 4 символа'}), 400
-        
+
+        car_number = None
+        vin_value = None
+
+        if ENABLE_CAR_NUMBER:
+            car_number_input = data.get('carNumber') or data.get('car_number')
+            vin_input = data.get('vin')
+
+            if vin_input is not None and not isinstance(vin_input, str):
+                return jsonify({'error': 'vin должен быть строкой'}), 400
+
+            car_number = normalize_car_number(car_number_input)
+            if not car_number and vin_input:
+                car_number = normalize_car_number(vin_input)
+
+            if not car_number:
+                return jsonify({'error': 'carNumber обязателен при создании заказа'}), 400
+
+            if not is_valid_car_number(car_number):
+                return jsonify({'error': 'carNumber должен содержать 4-10 символов и состоять из букв и цифр'}), 400
+
+            vin_value = normalize_car_number(vin_input) if vin_input else car_number
+        else:
+            vin_input = data.get('vin')
+
+            if vin_input is None:
+                return jsonify({'error': 'Отсутствует обязательное поле: vin'}), 400
+
+            if not isinstance(vin_input, str):
+                return jsonify({'error': 'VIN должен быть строкой'}), 400
+
+            vin_value = vin_input.strip()
+            if len(vin_value) < 4:
+                return jsonify({'error': 'VIN должен содержать минимум 4 символа'}), 400
+
+            car_number = normalize_car_number(data.get('carNumber') or data.get('car_number') or vin_value)
+
         order = Order(
             mechanic_name=data['mechanic_name'],
             telegram_id=data['telegram_id'],
             category=data['category'],
-            vin=data['vin'],
-            selected_parts=data['selected_parts'],
+            vin=vin_value,
+            car_number=car_number,
+            selected_parts=selected_parts,
             is_original=data.get('is_original', False),
             photo_url=data.get('photo_url'),
             language=data.get('language', 'ru')
         )
-        
+
+        if ENABLE_CAR_NUMBER and order.car_number and not order.vin:
+            order.vin = order.car_number
+
         db.session.add(order)
         db.session.commit()
-        
+
         logger.info(f"Order created: ID={order.id}, mechanic={order.mechanic_name}")
-        
         return jsonify(order.to_dict()), 201
-        
+
     except Exception as e:
         db.session.rollback()
         logger.error(f"Error creating order: {e}")
@@ -411,8 +488,49 @@ def update_order(order_id):
         if 'category' in data:
             order.category = data['category']
         
-        if 'vin' in data:
-            order.vin = data['vin']
+        vehicle_fields_updated = False
+        
+        if ENABLE_CAR_NUMBER:
+            if 'carNumber' in data or 'car_number' in data:
+                raw_car_number = data['carNumber'] if 'carNumber' in data else data.get('car_number')
+                if raw_car_number is None:
+                    new_car_number = None
+                else:
+                    new_car_number = normalize_car_number(raw_car_number)
+                    if not new_car_number:
+                        return jsonify({'error': 'carNumber не может быть пустым'}), 400
+                    if not is_valid_car_number(new_car_number):
+                        return jsonify({'error': 'carNumber должен содержать 4-10 символов и состоять из букв и цифр'}), 400
+                order.car_number = new_car_number
+                vehicle_fields_updated = True
+            
+            if 'vin' in data:
+                vin_value = data['vin']
+                if vin_value is not None and not isinstance(vin_value, str):
+                    return jsonify({'error': 'vin должен быть строкой'}), 400
+                order.vin = normalize_car_number(vin_value) if vin_value else None
+                vehicle_fields_updated = True
+            
+            if vehicle_fields_updated:
+                if not order.car_number and order.vin:
+                    fallback_car = normalize_car_number(order.vin)
+                    if fallback_car and (ALLOW_ANY_CAR_NUMBER or is_valid_car_number(fallback_car)):
+                        order.car_number = fallback_car
+                if order.car_number and not order.vin:
+                    order.vin = order.car_number
+        else:
+            if 'vin' in data:
+                order.vin = data['vin']
+                vehicle_fields_updated = True
+            
+            if 'carNumber' in data or 'car_number' in data:
+                raw_car_number = data.get('carNumber') or data.get('car_number')
+                if raw_car_number is not None:
+                    order.car_number = normalize_car_number(raw_car_number)
+                    vehicle_fields_updated = True
+            
+            if vehicle_fields_updated and not order.car_number and order.vin:
+                order.car_number = normalize_car_number(order.vin)
         
         if 'selected_parts' in data:
             order.selected_parts = data['selected_parts']

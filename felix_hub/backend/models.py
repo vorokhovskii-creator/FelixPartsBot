@@ -97,7 +97,8 @@ class Order(db.Model):
     mechanic_name = db.Column(db.String(120), nullable=False)
     telegram_id = db.Column(db.String(50), nullable=False)
     category = db.Column(db.String(120), nullable=False)
-    vin = db.Column(db.String(50), nullable=False)
+    car_number = db.Column(db.String(20), nullable=True, index=True)
+    vin = db.Column(db.String(50), nullable=True)
     selected_parts = db.Column(db.JSON, nullable=False)
     is_original = db.Column(db.Boolean, default=False)
     photo_url = db.Column(db.String(250), nullable=True)
@@ -119,16 +120,23 @@ class Order(db.Model):
     custom_works = db.relationship('CustomWorkItem', back_populates='order', cascade='all, delete-orphan')
     custom_parts = db.relationship('CustomPartItem', back_populates='order', cascade='all, delete-orphan')
     
+    @property
+    def preferred_car_number(self):
+        return self.car_number or self.vin
+    
     def to_dict(self):
         part_name = ', '.join(self.selected_parts) if isinstance(self.selected_parts, list) else str(self.selected_parts)
         part_type = 'Оригинал' if self.is_original else 'Аналог'
+        preferred_car_number = self.preferred_car_number
         
         return {
             'id': self.id,
             'mechanic_name': self.mechanic_name,
             'telegram_id': self.telegram_id,
             'category': self.category,
-            'vin': self.vin,
+            'vin': self.vin or preferred_car_number,
+            'car_number': preferred_car_number,
+            'carNumber': preferred_car_number,
             'selected_parts': self.selected_parts,
             'part_name': part_name,
             'part_type': part_type,

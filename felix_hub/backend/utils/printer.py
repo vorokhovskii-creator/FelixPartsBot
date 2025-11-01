@@ -48,7 +48,11 @@ def print_order_receipt(order) -> bool:
         printer.set(bold=False)
         printer.text(f"Дата: {order.created_at.strftime('%d.%m.%Y %H:%M')}\n")
         printer.text(f"Механик: {order.mechanic_name}\n")
-        printer.text(f"VIN: {order.vin}\n")
+        car_number_value = getattr(order, 'preferred_car_number', None) or getattr(order, 'car_number', None) or getattr(order, 'vin', None)
+        if car_number_value:
+            printer.text(f"Номер авто: {car_number_value}\n")
+        if getattr(order, 'vin', None) and order.vin != car_number_value:
+            printer.text(f"VIN: {order.vin}\n")
         printer.text(f"Категория: {order.category}\n")
         printer.text("=" * RECEIPT_WIDTH + "\n")
         
@@ -215,8 +219,13 @@ def generate_order_pdf(order, output_path: Optional[str] = None) -> Optional[str
         y -= 6*mm
         c.drawString(50*mm, y, f"Механик: {order.mechanic_name}")
         y -= 6*mm
-        c.drawString(50*mm, y, f"VIN: {order.vin}")
-        y -= 6*mm
+        car_number_value = getattr(order, 'preferred_car_number', None) or getattr(order, 'car_number', None) or getattr(order, 'vin', None)
+        if car_number_value:
+            c.drawString(50*mm, y, f"Номер авто: {car_number_value}")
+            y -= 6*mm
+        if getattr(order, 'vin', None) and order.vin != car_number_value:
+            c.drawString(50*mm, y, f"VIN: {order.vin}")
+            y -= 6*mm
         c.drawString(50*mm, y, f"Категория: {order.category}")
         y -= 10*mm
         

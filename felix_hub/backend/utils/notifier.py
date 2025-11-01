@@ -24,6 +24,22 @@ TELEGRAM_API_URL = f"https://api.telegram.org/bot{BOT_TOKEN}"
 FRONTEND_URL = os.getenv('FRONTEND_URL', 'https://felix-hub.example.com')
 
 
+def _extract_vehicle_identifiers(order):
+    car_number = getattr(order, 'preferred_car_number', None) or getattr(order, 'car_number', None)
+    vin_value = getattr(order, 'vin', None)
+    return car_number, vin_value
+
+
+def _format_vehicle_details(order) -> str:
+    car_number, vin_value = _extract_vehicle_identifiers(order)
+    lines = []
+    if car_number:
+        lines.append(f"🚘 Номер авто: {car_number}")
+    if vin_value and (not car_number or vin_value != car_number):
+        lines.append(f"🚗 VIN: {vin_value}")
+    return "\n".join(lines)
+
+
 def send_telegram_notification(chat_id: str, message: str, parse_mode: str = 'HTML') -> bool:
     """
     Отправляет уведомление в Telegram через Bot API.
@@ -86,13 +102,18 @@ def notify_order_ready(order) -> bool:
     """
     lang = getattr(order, 'language', 'ru') or 'ru'
     parts_list = "\n".join([f"  • {part}" for part in order.selected_parts])
+    car_number, vin_value = _extract_vehicle_identifiers(order)
+    display_identifier = car_number or vin_value or '—'
     
     message = get_text('order_ready', lang,
         order_id=order.id,
         parts=parts_list,
-        vin=order.vin,
+        vin=display_identifier,
         date=order.created_at.strftime('%d.%m.%Y %H:%M')
     )
+    
+    if vin_value and car_number and vin_value != car_number:
+        message += f"\n🚗 VIN: {vin_value}"
     
     success = send_telegram_notification(order.telegram_id, message)
     
@@ -129,8 +150,10 @@ def notify_order_status_changed(order, old_status: str, new_status: str) -> bool
         f"{emoji} <b>Статус заказа №{order.id} изменён</b>\n\n"
         f"Было: <i>{old_status}</i>\n"
         f"Стало: <b>{new_status}</b>\n\n"
-        f"🚗 VIN: {order.vin}"
     )
+    vehicle_details = _format_vehicle_details(order)
+    if vehicle_details:
+        message += vehicle_details
     
     if new_status in ['готов', 'выдан']:
         return send_telegram_notification(order.telegram_id, message)
@@ -148,13 +171,15 @@ def send_order_delayed_notification(order) -> bool:
     Returns:
         bool: True если уведомление отправлено
     """
+    vehicle_details = _format_vehicle_details(order)
     message = (
         f"⏰ <b>Заказ №{order.id}</b>\n\n"
         f"К сожалению, обработка заказа задерживается.\n"
         f"Мы свяжемся с тобой, как только запчасти будут готовы.\n\n"
-        f"🚗 VIN: {order.vin}\n"
-        f"Приносим извинения за неудобства! 🙏"
     )
+    if vehicle_details:
+        message += f"{vehicle_details}\n"
+    message += "Приносим извинения за неудобства! 🙏"
     
     return send_telegram_notification(order.telegram_id, message)
 
@@ -333,10 +358,14 @@ def notify_mechanic_assignment(order, mechanic, is_reassignment: bool = False, d
     if len(order.selected_parts) > 5:
         parts_list += f"\n  ... и ещё {len(order.selected_parts) - 5}"
     
+    vehicle_details = _format_vehicle_details(order)
     message = (
         f"{emoji} <b>Новый заказ {action_text} на вас!</b>\n\n"
         f"📋 Заказ №{order.id}\n"
-        f"🚗 VIN: {order.vin}\n"
+    )
+    if vehicle_details:
+        message += f"{vehicle_details}\n"
+    message += (
         f"📦 Категория: {order.category}\n\n"
         f"<b>Запчасти:</b>\n{parts_list}\n\n"
         f"🔗 <a href='{deeplink}'>Открыть заказ в приложении</a>"
