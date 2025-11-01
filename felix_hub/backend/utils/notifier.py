@@ -40,6 +40,29 @@ def _format_vehicle_details(order) -> str:
     return "\n".join(lines)
 
 
+def _get_order_part_names(order):
+    try:
+        names = order.get_part_names()
+        if names:
+            return names
+    except AttributeError:
+        pass
+    except Exception as exc:  # pragma: no cover - defensive logging
+        logger.debug(f"Unable to read part names via get_part_names: {exc}")
+    raw_parts = getattr(order, 'selected_parts', []) or []
+    if isinstance(raw_parts, list):
+        names = []
+        for item in raw_parts:
+            if isinstance(item, dict):
+                value = item.get('name') or item.get('label')
+                if value:
+                    names.append(str(value))
+            else:
+                names.append(str(item))
+        return names
+    return [str(raw_parts)] if raw_parts else []
+
+
 def send_telegram_notification(chat_id: str, message: str, parse_mode: str = 'HTML') -> bool:
     """
     Отправляет уведомление в Telegram через Bot API.
@@ -101,7 +124,8 @@ def notify_order_ready(order) -> bool:
         bool: True если уведомление отправлено успешно
     """
     lang = getattr(order, 'language', 'ru') or 'ru'
-    parts_list = "\n".join([f"  • {part}" for part in order.selected_parts])
+    part_names = _get_order_part_names(order)
+    parts_list = "\n".join([f"  • {part}" for part in part_names]) or "  • —"
     car_number, vin_value = _extract_vehicle_identifiers(order)
     display_identifier = car_number or vin_value or '—'
     
@@ -354,9 +378,11 @@ def notify_mechanic_assignment(order, mechanic, is_reassignment: bool = False, d
     action_text = "переназначен" if is_reassignment else "назначен"
     emoji = "🔄" if is_reassignment else "🔔"
     
-    parts_list = "\n".join([f"  • {part}" for part in order.selected_parts[:5]])
-    if len(order.selected_parts) > 5:
-        parts_list += f"\n  ... и ещё {len(order.selected_parts) - 5}"
+    part_names = _get_order_part_names(order)
+    display_parts = part_names[:5]
+    parts_list = "\n".join([f"  • {part}" for part in display_parts]) or "  • —"
+    if len(part_names) > 5:
+        parts_list += f"\n  ... и ещё {len(part_names) - 5}"
     
     vehicle_details = _format_vehicle_details(order)
     message = (
