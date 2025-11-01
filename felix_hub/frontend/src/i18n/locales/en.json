@@ -1,0 +1,207 @@
+{
+  "common": {
+    "loading": "Loading...",
+    "error": "Error",
+    "cancel": "Cancel",
+    "save": "Save",
+    "delete": "Delete",
+    "edit": "Edit",
+    "search": "Search",
+    "filter": "Filter",
+    "close": "Close",
+    "confirm": "Confirm",
+    "back": "Back",
+    "next": "Next",
+    "submit": "Submit",
+    "add": "Add",
+    "remove": "Remove"
+  },
+  "header": {
+    "appName": "Felix Hub",
+    "logout": "Logout"
+  },
+  "navigation": {
+    "orders": "Orders",
+    "time": "Time",
+    "profile": "Profile"
+  },
+  "login": {
+    "title": "Mechanic Login",
+    "phoneLabel": "Phone Number",
+    "phonePlaceholder": "Enter phone number",
+    "passwordLabel": "Password",
+    "passwordPlaceholder": "Enter password",
+    "loginButton": "Login",
+    "loggingIn": "Logging in...",
+    "errors": {
+      "invalidPhone": "Invalid phone number",
+      "invalidPassword": "Password must be at least 4 characters",
+      "loginFailed": "Login failed. Please try again.",
+      "unauthorized": "Invalid credentials"
+    },
+    "deeplink": {
+      "loggingInWithToken": "Logging in with token...",
+      "redirectingToOrder": "Redirecting to order..."
+    }
+  },
+  "dashboard": {
+    "createOrder": "Create Order",
+    "stats": {
+      "active": "Active",
+      "completed": "Completed Today",
+      "time": "Hours"
+    },
+    "filters": {
+      "all": "All",
+      "new": "New",
+      "inProgress": "In Progress",
+      "completed": "Completed"
+    },
+    "errors": {
+      "loadingStats": "Error loading statistics"
+    }
+  },
+  "orders": {
+    "title": "Orders",
+    "empty": "No orders found",
+    "status": {
+      "new": "New",
+      "inProgress": "In Progress",
+      "completed": "Completed",
+      "cancelled": "Cancelled"
+    },
+    "details": {
+      "orderNumber": "Order #{{number}}",
+      "customer": "Customer",
+      "phone": "Phone",
+      "device": "Device",
+      "issue": "Issue",
+      "notes": "Notes",
+      "status": "Status",
+      "createdAt": "Created",
+      "updatedAt": "Updated"
+    },
+    "actions": {
+      "start": "Start Work",
+      "pause": "Pause",
+      "complete": "Complete",
+      "cancel": "Cancel",
+      "addComment": "Add Comment",
+      "addPart": "Add Part"
+    }
+  },
+  "newOrder": {
+    "title": "New Order",
+    "customer": {
+      "title": "Customer Information",
+      "name": "Customer Name",
+      "namePlaceholder": "Enter customer name",
+      "phone": "Phone Number",
+      "phonePlaceholder": "Enter phone number"
+    },
+    "device": {
+      "title": "Device Information",
+      "type": "Device Type",
+      "typePlaceholder": "e.g., iPhone 12",
+      "issue": "Issue Description",
+      "issuePlaceholder": "Describe the problem"
+    },
+    "notes": {
+      "title": "Additional Notes",
+      "placeholder": "Any additional information..."
+    },
+    "submit": "Create Order",
+    "creating": "Creating...",
+    "errors": {
+      "createFailed": "Failed to create order",
+      "requiredFields": "Please fill in all required fields"
+    },
+    "success": "Order created successfully"
+  },
+  "orderDetails": {
+    "title": "Order Details",
+    "customer": "Customer",
+    "phone": "Phone",
+    "device": "Device",
+    "issue": "Issue",
+    "notes": "Notes",
+    "status": "Status",
+    "time": "Time Spent",
+    "parts": "Parts Used",
+    "comments": "Comments",
+    "totalCost": "Total Cost",
+    "startWork": "Start Work",
+    "pauseWork": "Pause Work",
+    "completeOrder": "Complete Order",
+    "addComment": "Add Comment",
+    "commentPlaceholder": "Add a comment...",
+    "errors": {
+      "loadFailed": "Failed to load order details",
+      "updateFailed": "Failed to update order",
+      "addCommentFailed": "Failed to add comment"
+    }
+  },
+  "timeHistory": {
+    "title": "Time History",
+    "today": "Today",
+    "thisWeek": "This Week",
+    "thisMonth": "This Month",
+    "totalHours": "Total Hours",
+    "ordersCompleted": "Orders Completed",
+    "averageTime": "Average Time per Order",
+    "empty": "No time records found"
+  },
+  "profile": {
+    "title": "Profile",
+    "name": "Name",
+    "phone": "Phone",
+    "email": "Email",
+    "role": "Role",
+    "mechanic": "Mechanic",
+    "settings": "Settings",
+    "language": "Language",
+    "changePassword": "Change Password",
+    "logout": "Logout"
+  },
+  "parts": {
+    "title": "Parts Catalog",
+    "search": "Search parts...",
+    "category": "Category",
+    "price": "Price",
+    "stock": "In Stock",
+    "addToOrder": "Add to Order",
+    "quantity": "Quantity",
+    "total": "Total"
+  },
+  "comments": {
+    "title": "Comments",
+    "add": "Add Comment",
+    "placeholder": "Write a comment...",
+    "empty": "No comments yet",
+    "postedBy": "Posted by {{name}}",
+    "at": "at {{time}}"
+  },
+  "timeTracker": {
+    "title": "Time Tracker",
+    "start": "Start Timer",
+    "pause": "Pause Timer",
+    "resume": "Resume Timer",
+    "stop": "Stop Timer",
+    "elapsed": "Time Elapsed",
+    "total": "Total Time"
+  },
+  "statusButtons": {
+    "start": "Start",
+    "pause": "Pause",
+    "resume": "Resume",
+    "complete": "Complete"
+  },
+  "errors": {
+    "somethingWentWrong": "Something went wrong",
+    "tryAgain": "Please try again",
+    "networkError": "Network error. Please check your connection.",
+    "unauthorized": "Unauthorized. Please log in again.",
+    "notFound": "Not found",
+    "serverError": "Server error. Please try again later."
+  }
+}

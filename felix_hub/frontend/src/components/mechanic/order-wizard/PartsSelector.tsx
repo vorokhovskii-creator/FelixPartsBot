@@ -139,7 +139,6 @@ export default function PartsSelector({
   }
 
   const customParts = selectedParts.filter((p) => p.isCustom);
-  const catalogParts = selectedParts.filter((p) => !p.isCustom);
 
   return (
     <div>

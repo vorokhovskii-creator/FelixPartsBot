@@ -1,0 +1,207 @@
+{
+  "common": {
+    "loading": "טוען...",
+    "error": "שגיאה",
+    "cancel": "ביטול",
+    "save": "שמור",
+    "delete": "מחק",
+    "edit": "ערוך",
+    "search": "חיפוש",
+    "filter": "סינון",
+    "close": "סגור",
+    "confirm": "אישור",
+    "back": "חזור",
+    "next": "הבא",
+    "submit": "שלח",
+    "add": "הוסף",
+    "remove": "הסר"
+  },
+  "header": {
+    "appName": "Felix Hub",
+    "logout": "התנתק"
+  },
+  "navigation": {
+    "orders": "הזמנות",
+    "time": "זמן",
+    "profile": "פרופיל"
+  },
+  "login": {
+    "title": "כניסת טכנאי",
+    "phoneLabel": "מספר טלפון",
+    "phonePlaceholder": "הזן מספר טלפון",
+    "passwordLabel": "סיסמה",
+    "passwordPlaceholder": "הזן סיסמה",
+    "loginButton": "התחבר",
+    "loggingIn": "מתחבר...",
+    "errors": {
+      "invalidPhone": "מספר טלפון לא חוקי",
+      "invalidPassword": "הסיסמה חייבת להכיל לפחות 4 תווים",
+      "loginFailed": "ההתחברות נכשלה. נסה שוב.",
+      "unauthorized": "פרטי התחברות שגויים"
+    },
+    "deeplink": {
+      "loggingInWithToken": "מתחבר עם אסימון...",
+      "redirectingToOrder": "מעביר להזמנה..."
+    }
+  },
+  "dashboard": {
+    "createOrder": "צור הזמנה",
+    "stats": {
+      "active": "פעיל",
+      "completed": "הושלם היום",
+      "time": "שעות"
+    },
+    "filters": {
+      "all": "הכל",
+      "new": "חדש",
+      "inProgress": "בעבודה",
+      "completed": "הושלם"
+    },
+    "errors": {
+      "loadingStats": "שגיאה בטעינת סטטיסטיקות"
+    }
+  },
+  "orders": {
+    "title": "הזמנות",
+    "empty": "לא נמצאו הזמנות",
+    "status": {
+      "new": "חדש",
+      "inProgress": "בעבודה",
+      "completed": "הושלם",
+      "cancelled": "בוטל"
+    },
+    "details": {
+      "orderNumber": "הזמנה #{{number}}",
+      "customer": "לקוח",
+      "phone": "טלפון",
+      "device": "מכשיר",
+      "issue": "תקלה",
+      "notes": "הערות",
+      "status": "סטטוס",
+      "createdAt": "נוצר",
+      "updatedAt": "עודכן"
+    },
+    "actions": {
+      "start": "התחל עבודה",
+      "pause": "השהה",
+      "complete": "השלם",
+      "cancel": "בטל",
+      "addComment": "הוסף הערה",
+      "addPart": "הוסף חלק"
+    }
+  },
+  "newOrder": {
+    "title": "הזמנה חדשה",
+    "customer": {
+      "title": "פרטי לקוח",
+      "name": "שם לקוח",
+      "namePlaceholder": "הזן שם לקוח",
+      "phone": "מספר טלפון",
+      "phonePlaceholder": "הזן מספר טלפון"
+    },
+    "device": {
+      "title": "פרטי מכשיר",
+      "type": "סוג מכשיר",
+      "typePlaceholder": "לדוגמה, iPhone 12",
+      "issue": "תיאור התקלה",
+      "issuePlaceholder": "תאר את הבעיה"
+    },
+    "notes": {
+      "title": "הערות נוספות",
+      "placeholder": "מידע נוסף..."
+    },
+    "submit": "צור הזמנה",
+    "creating": "יוצר...",
+    "errors": {
+      "createFailed": "יצירת ההזמנה נכשלה",
+      "requiredFields": "אנא מלא את כל השדות הנדרשים"
+    },
+    "success": "ההזמנה נוצרה בהצלחה"
+  },
+  "orderDetails": {
+    "title": "פרטי הזמנה",
+    "customer": "לקוח",
+    "phone": "טלפון",
+    "device": "מכשיר",
+    "issue": "תקלה",
+    "notes": "הערות",
+    "status": "סטטוס",
+    "time": "זמן שהושקע",
+    "parts": "חלקים שהושתמשו",
+    "comments": "הערות",
+    "totalCost": "עלות כוללת",
+    "startWork": "התחל עבודה",
+    "pauseWork": "השהה עבודה",
+    "completeOrder": "השלם הזמנה",
+    "addComment": "הוסף הערה",
+    "commentPlaceholder": "הוסף הערה...",
+    "errors": {
+      "loadFailed": "טעינת פרטי ההזמנה נכשלה",
+      "updateFailed": "עדכון ההזמנה נכשל",
+      "addCommentFailed": "הוספת ההערה נכשלה"
+    }
+  },
+  "timeHistory": {
+    "title": "היסטוריית זמן",
+    "today": "היום",
+    "thisWeek": "השבוע",
+    "thisMonth": "החודש",
+    "totalHours": "סה\"כ שעות",
+    "ordersCompleted": "הזמנות שהושלמו",
+    "averageTime": "זמן ממוצע להזמנה",
+    "empty": "לא נמצאו רשומות זמן"
+  },
+  "profile": {
+    "title": "פרופיל",
+    "name": "שם",
+    "phone": "טלפון",
+    "email": "דוא\"ל",
+    "role": "תפקיד",
+    "mechanic": "טכנאי",
+    "settings": "הגדרות",
+    "language": "שפה",
+    "changePassword": "שנה סיסמה",
+    "logout": "התנתק"
+  },
+  "parts": {
+    "title": "קטלוג חלקים",
+    "search": "חפש חלקים...",
+    "category": "קטגוריה",
+    "price": "מחיר",
+    "stock": "במלאי",
+    "addToOrder": "הוסף להזמנה",
+    "quantity": "כמות",
+    "total": "סה\"כ"
+  },
+  "comments": {
+    "title": "הערות",
+    "add": "הוסף הערה",
+    "placeholder": "כתוב הערה...",
+    "empty": "אין הערות עדיין",
+    "postedBy": "פורסם על ידי {{name}}",
+    "at": "ב-{{time}}"
+  },
+  "timeTracker": {
+    "title": "מעקב זמן",
+    "start": "הפעל טיימר",
+    "pause": "השהה טיימר",
+    "resume": "המשך טיימר",
+    "stop": "עצור טיימר",
+    "elapsed": "זמן שעבר",
+    "total": "סה\"כ זמן"
+  },
+  "statusButtons": {
+    "start": "התחל",
+    "pause": "השהה",
+    "resume": "המשך",
+    "complete": "השלם"
+  },
+  "errors": {
+    "somethingWentWrong": "משהו השתבש",
+    "tryAgain": "אנא נסה שוב",
+    "networkError": "שגיאת רשת. בדוק את החיבור שלך.",
+    "unauthorized": "לא מורשה. אנא התחבר שוב.",
+    "notFound": "לא נמצא",
+    "serverError": "שגיאת שרת. נסה שוב מאוחר יותר."
+  }
+}
