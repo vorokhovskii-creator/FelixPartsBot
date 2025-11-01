@@ -1,30 +1,63 @@
 @import "tailwindcss";
 
 @theme {
+  /* Modern minimal color palette - tech-forward blues and grays */
   --color-background: 0 0% 100%;
-  --color-foreground: 222.2 84% 4.9%;
+  --color-foreground: 222 47% 11%;
   --color-card: 0 0% 100%;
-  --color-card-foreground: 222.2 84% 4.9%;
+  --color-card-foreground: 222 47% 11%;
   --color-popover: 0 0% 100%;
-  --color-popover-foreground: 222.2 84% 4.9%;
-  --color-primary: 222.2 47.4% 11.2%;
-  --color-primary-foreground: 210 40% 98%;
-  --color-secondary: 210 40% 96.1%;
-  --color-secondary-foreground: 222.2 47.4% 11.2%;
-  --color-muted: 210 40% 96.1%;
-  --color-muted-foreground: 215.4 16.3% 46.9%;
-  --color-accent: 210 40% 96.1%;
-  --color-accent-foreground: 222.2 47.4% 11.2%;
-  --color-destructive: 0 84.2% 60.2%;
-  --color-destructive-foreground: 210 40% 98%;
-  --color-border: 214.3 31.8% 91.4%;
-  --color-input: 214.3 31.8% 91.4%;
-  --color-ring: 222.2 84% 4.9%;
-  --radius: 0.5rem;
+  --color-popover-foreground: 222 47% 11%;
+  
+  /* Primary - Modern tech blue */
+  --color-primary: 217 91% 60%;
+  --color-primary-foreground: 0 0% 100%;
+  
+  /* Secondary - Subtle gray */
+  --color-secondary: 214 32% 91%;
+  --color-secondary-foreground: 222 47% 11%;
+  
+  --color-muted: 210 40% 96%;
+  --color-muted-foreground: 215 16% 47%;
+  
+  /* Accent - Tech purple */
+  --color-accent: 262 83% 58%;
+  --color-accent-foreground: 0 0% 100%;
+  
+  --color-destructive: 0 84% 60%;
+  --color-destructive-foreground: 0 0% 100%;
+  
+  /* Status colors - comprehensive system */
+  --color-success: 142 76% 36%;
+  --color-success-foreground: 0 0% 100%;
+  --color-warning: 38 92% 50%;
+  --color-warning-foreground: 0 0% 100%;
+  --color-info: 199 89% 48%;
+  --color-info-foreground: 0 0% 100%;
+  --color-error: 0 84% 60%;
+  --color-error-foreground: 0 0% 100%;
+  
+  /* Borders and inputs */
+  --color-border: 214 32% 91%;
+  --color-input: 214 32% 91%;
+  --color-ring: 217 91% 60%;
+  
+  /* Modern radius - slightly more rounded */
+  --radius: 0.75rem;
+  
+  /* Spacing scale */
+  --spacing-xs: 0.25rem;
+  --spacing-sm: 0.5rem;
+  --spacing-md: 1rem;
+  --spacing-lg: 1.5rem;
+  --spacing-xl: 2rem;
 }
 
 body {
   font-feature-settings: "rlig" 1, "calt" 1;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 .touch-target {

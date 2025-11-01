@@ -35,7 +35,7 @@ export default function LanguageSwitcher() {
         variant="ghost"
         size="icon"
         onClick={() => setIsOpen(!isOpen)}
-        className="touch-target"
+        className="touch-target rounded-full hover:bg-secondary"
         title="Change language"
       >
         <Languages className="h-5 w-5" />
@@ -47,17 +47,17 @@ export default function LanguageSwitcher() {
             className="fixed inset-0 z-40" 
             onClick={() => setIsOpen(false)}
           />
-          <div className="absolute top-full right-0 mt-2 w-48 bg-white border border-gray-200 rounded-md shadow-lg z-50">
+          <div className="absolute top-full right-0 mt-2 w-48 bg-white border border-border rounded-xl shadow-xl z-50 overflow-hidden">
             {languages.map((lang) => (
               <button
                 key={lang.code}
                 onClick={() => changeLanguage(lang.code)}
-                className={`w-full px-4 py-2 text-left hover:bg-gray-100 flex items-center gap-2 ${
-                  currentLanguage.code === lang.code ? 'bg-gray-50 font-semibold' : ''
+                className={`w-full px-4 py-3 text-left hover:bg-secondary transition-colors flex items-center gap-3 ${
+                  currentLanguage.code === lang.code ? 'bg-primary/10 font-semibold text-primary' : ''
                 }`}
               >
                 <span className="text-xl">{lang.flag}</span>
-                <span>{lang.name}</span>
+                <span className="text-sm">{lang.name}</span>
               </button>
             ))}
           </div>

@@ -17,7 +17,8 @@
     "remove": "הסר"
   },
   "header": {
-    "appName": "Felix Hub",
+    "appName": "FelixPartsBot",
+    "tagline": "סביבת עבודה לטכנאי",
     "logout": "התנתק"
   },
   "navigation": {

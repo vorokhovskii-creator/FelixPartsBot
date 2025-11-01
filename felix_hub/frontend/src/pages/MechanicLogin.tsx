@@ -12,6 +12,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import api from '@/lib/api';
 import { useTranslation } from 'react-i18next';
 import LanguageSwitcher from '@/layout/LanguageSwitcher';
+import { Wrench } from 'lucide-react';
 
 export default function MechanicLogin() {
   const [isLoading, setIsLoading] = useState(false);
@@ -99,21 +100,28 @@ export default function MechanicLogin() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
-      <Card className="w-full max-w-md">
-        <CardHeader className="space-y-1">
-          <div className="flex justify-between items-center">
-            <CardTitle className="text-2xl font-bold">
-              {t('header.appName')}
-            </CardTitle>
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary/5 via-accent/5 to-primary/10 p-4">
+      <Card className="w-full max-w-md shadow-2xl">
+        <CardHeader className="space-y-4 text-center">
+          <div className="flex justify-end">
             <LanguageSwitcher />
           </div>
-          <CardDescription className="text-center">
-            {t('login.title')}
-          </CardDescription>
+          <div className="flex justify-center">
+            <div className="flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-primary to-accent shadow-lg">
+              <Wrench className="h-8 w-8 text-white" />
+            </div>
+          </div>
+          <div>
+            <CardTitle className="text-3xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent mb-2">
+              {t('header.appName')}
+            </CardTitle>
+            <CardDescription className="text-base">
+              {t('login.title')}
+            </CardDescription>
+          </div>
         </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+        <CardContent className="px-6 pb-6">
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
             <div className="space-y-2">
               <Label htmlFor="email">{t('login.phoneLabel')}</Label>
               <Input
@@ -121,10 +129,10 @@ export default function MechanicLogin() {
                 type="email"
                 placeholder={t('login.phonePlaceholder')}
                 {...register('email')}
-                className={errors.email ? 'border-red-500' : ''}
+                className={errors.email ? 'border-error' : ''}
               />
               {errors.email && (
-                <p className="text-sm text-red-500">{errors.email.message}</p>
+                <p className="text-sm text-error font-medium">{errors.email.message}</p>
               )}
             </div>
 
@@ -135,16 +143,16 @@ export default function MechanicLogin() {
                 type="password"
                 placeholder={t('login.passwordPlaceholder')}
                 {...register('password')}
-                className={errors.password ? 'border-red-500' : ''}
+                className={errors.password ? 'border-error' : ''}
               />
               {errors.password && (
-                <p className="text-sm text-red-500">{errors.password.message}</p>
+                <p className="text-sm text-error font-medium">{errors.password.message}</p>
               )}
             </div>
 
             <Button 
               type="submit" 
-              className="w-full touch-target"
+              className="w-full touch-target mt-6"
               disabled={isLoading}
             >
               {isLoading ? t('login.loggingIn') : t('login.loginButton')}
