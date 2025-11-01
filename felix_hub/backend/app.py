@@ -574,92 +574,9 @@ def export_orders():
 
 
 @app.route('/api/orders', methods=['POST'])
-def create_order():
-    try:
-        data = request.get_json()
-
-        if not data:
-            return jsonify({'error': 'Невалидный JSON'}), 400
-
-        required_fields = ['mechanic_name', 'telegram_id', 'category']
-        for field in required_fields:
-            if field not in data:
-                return jsonify({'error': f'Отсутствует обязательное поле: {field}'}), 400
-
-        parts_payload = data.get('parts')
-        legacy_parts_payload = data.get('selected_parts')
-
-        try:
-            if parts_payload is not None:
-                sanitized_parts = sanitize_parts_payload(parts_payload)
-            elif legacy_parts_payload is not None:
-                sanitized_parts = sanitize_legacy_parts_payload(legacy_parts_payload)
-            else:
-                return jsonify({'error': 'Необходимо указать parts или selected_parts'}), 400
-        except ValueError as exc:
-            return jsonify({'error': str(exc)}), 400
-
-        car_number = None
-        vin_value = None
-
-        if ENABLE_CAR_NUMBER:
-            car_number_input = data.get('carNumber') or data.get('car_number')
-            vin_input = data.get('vin')
-
-            if vin_input is not None and not isinstance(vin_input, str):
-                return jsonify({'error': 'vin должен быть строкой'}), 400
-
-            car_number = normalize_car_number(car_number_input)
-            if not car_number and vin_input:
-                car_number = normalize_car_number(vin_input)
-
-            if not car_number:
-                return jsonify({'error': 'carNumber обязателен при создании заказа'}), 400
-
-            if not is_valid_car_number(car_number):
-                return jsonify({'error': 'carNumber должен содержать 4-10 символов и состоять из букв и цифр'}), 400
-
-            vin_value = normalize_car_number(vin_input) if vin_input else car_number
-        else:
-            vin_input = data.get('vin')
-
-            if vin_input is None:
-                return jsonify({'error': 'Отсутствует обязательное поле: vin'}), 400
-
-            if not isinstance(vin_input, str):
-                return jsonify({'error': 'VIN должен быть строкой'}), 400
-
-            vin_value = vin_input.strip()
-            if len(vin_value) < 4:
-                return jsonify({'error': 'VIN должен содержать минимум 4 символа'}), 400
-
-            car_number = normalize_car_number(data.get('carNumber') or data.get('car_number') or vin_value)
-
-        order = Order(
-            mechanic_name=data['mechanic_name'],
-            telegram_id=data['telegram_id'],
-            category=data['category'],
-            vin=vin_value,
-            car_number=car_number,
-            selected_parts=sanitized_parts,
-            is_original=data.get('is_original', False),
-            photo_url=data.get('photo_url'),
-            language=data.get('language', 'ru')
-        )
-
-        if ENABLE_CAR_NUMBER and order.car_number and not order.vin:
-            order.vin = order.car_number
-
-        db.session.add(order)
-        db.session.commit()
-
-        logger.info(f"Order created: ID={order.id}, mechanic={order.mechanic_name}")
-        return jsonify(order.to_dict()), 201
-
-    except Exception as e:
-        db.session.rollback()
-        logger.error(f"Error creating order: {e}")
-        return jsonify({'error': 'Ошибка создания заказа'}), 500
+def create_order_route():
+    from api.orders import create_order
+    return create_order(ENABLE_CAR_NUMBER, ALLOW_ANY_CAR_NUMBER, normalize_car_number, is_valid_car_number)
 
 
 @app.route('/api/orders', methods=['GET'])
