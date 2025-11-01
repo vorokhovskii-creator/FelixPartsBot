@@ -1,18 +1,21 @@
 import { Outlet, useNavigate } from 'react-router-dom';
-import { Home, Clock, User, LogOut } from 'lucide-react';
+import { Home, Clock, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { useTranslation } from 'react-i18next';
+import Header from '@/layout/Header';
 
 export default function MechanicLayout() {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   
   const getMechanic = () => {
     try {
       const mechanicData = localStorage.getItem('mechanic');
-      if (!mechanicData) return { name: 'Механик' };
+      if (!mechanicData) return { name: t('profile.mechanic') };
       return JSON.parse(mechanicData);
     } catch (error) {
       console.error('Error parsing mechanic data:', error);
-      return { name: 'Механик' };
+      return { name: t('profile.mechanic') };
     }
   };
   
@@ -26,25 +29,7 @@ export default function MechanicLayout() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white border-b sticky top-0 z-50">
-        <div className="px-4 py-3 flex items-center justify-between">
-          <h1 className="text-lg font-semibold">Felix Hub</h1>
-          <div className="flex items-center gap-2">
-            <span className="text-sm text-gray-600 hidden sm:inline">
-              {mechanic.name}
-            </span>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={handleLogout}
-              className="touch-target"
-            >
-              <LogOut className="h-5 w-5" />
-            </Button>
-          </div>
-        </div>
-      </header>
+      <Header userName={mechanic.name} onLogout={handleLogout} />
 
       {/* Content */}
       <main className="pb-20 md:pb-4">
@@ -60,7 +45,7 @@ export default function MechanicLayout() {
             onClick={() => navigate('/mechanic/dashboard')}
           >
             <Home className="h-6 w-6 mb-1" />
-            <span className="text-xs">Заказы</span>
+            <span className="text-xs">{t('navigation.orders')}</span>
           </Button>
           
           <Button
@@ -69,7 +54,7 @@ export default function MechanicLayout() {
             onClick={() => navigate('/mechanic/time')}
           >
             <Clock className="h-6 w-6 mb-1" />
-            <span className="text-xs">Время</span>
+            <span className="text-xs">{t('navigation.time')}</span>
           </Button>
           
           <Button
@@ -78,7 +63,7 @@ export default function MechanicLayout() {
             onClick={() => navigate('/mechanic/profile')}
           >
             <User className="h-6 w-6 mb-1" />
-            <span className="text-xs">Профиль</span>
+            <span className="text-xs">{t('navigation.profile')}</span>
           </Button>
         </div>
       </nav>

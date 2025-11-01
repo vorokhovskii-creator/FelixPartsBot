@@ -10,18 +10,21 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import api from '@/lib/api';
-
-const loginSchema = z.object({
-  email: z.string().email('Некорректный email'),
-  password: z.string().min(6, 'Пароль должен быть минимум 6 символов'),
-});
-
-type LoginForm = z.infer<typeof loginSchema>;
+import { useTranslation } from 'react-i18next';
+import LanguageSwitcher from '@/layout/LanguageSwitcher';
 
 export default function MechanicLogin() {
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const { t } = useTranslation();
+  
+  const loginSchema = z.object({
+    email: z.string().email(t('login.errors.invalidPhone')),
+    password: z.string().min(6, t('login.errors.invalidPassword')),
+  });
+
+  type LoginForm = z.infer<typeof loginSchema>;
   
   const { register, handleSubmit, formState: { errors } } = useForm<LoginForm>({
     resolver: zodResolver(loginSchema),
@@ -53,7 +56,7 @@ export default function MechanicLogin() {
       localStorage.setItem('mechanic_token', response.data.token);
       localStorage.setItem('mechanic', JSON.stringify(response.data.mechanic));
       
-      toast.success('Вход выполнен успешно');
+      toast.success(t('login.deeplink.loggingInWithToken'));
       
       // Redirect to order page if orderId provided
       if (orderId) {
@@ -63,9 +66,9 @@ export default function MechanicLogin() {
       }
     } catch (error) {
       if (error instanceof AxiosError && error.response?.data?.error) {
-        toast.error(`Ошибка автологина: ${error.response.data.error}`);
+        toast.error(`${t('login.errors.loginFailed')}: ${error.response.data.error}`);
       } else {
-        toast.error('Ошибка автологина. Войдите вручную.');
+        toast.error(t('login.errors.loginFailed'));
       }
     } finally {
       setIsLoading(false);
@@ -82,13 +85,13 @@ export default function MechanicLogin() {
       localStorage.setItem('mechanic_token', response.data.token);
       localStorage.setItem('mechanic', JSON.stringify(response.data.mechanic));
       
-      toast.success('Вход выполнен успешно');
+      toast.success(t('login.loggingIn'));
       navigate('/mechanic/dashboard');
     } catch (error) {
       if (error instanceof AxiosError && error.response?.data?.error) {
         toast.error(error.response.data.error);
       } else {
-        toast.error('Ошибка входа');
+        toast.error(t('login.errors.loginFailed'));
       }
     } finally {
       setIsLoading(false);
@@ -99,21 +102,24 @@ export default function MechanicLogin() {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1">
-          <CardTitle className="text-2xl font-bold text-center">
-            Felix Hub
-          </CardTitle>
+          <div className="flex justify-between items-center">
+            <CardTitle className="text-2xl font-bold">
+              {t('header.appName')}
+            </CardTitle>
+            <LanguageSwitcher />
+          </div>
           <CardDescription className="text-center">
-            Вход для механиков
+            {t('login.title')}
           </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="email">{t('login.phoneLabel')}</Label>
               <Input
                 id="email"
                 type="email"
-                placeholder="ivan@felix.com"
+                placeholder={t('login.phonePlaceholder')}
                 {...register('email')}
                 className={errors.email ? 'border-red-500' : ''}
               />
@@ -123,11 +129,11 @@ export default function MechanicLogin() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="password">Пароль</Label>
+              <Label htmlFor="password">{t('login.passwordLabel')}</Label>
               <Input
                 id="password"
                 type="password"
-                placeholder="••••••"
+                placeholder={t('login.passwordPlaceholder')}
                 {...register('password')}
                 className={errors.password ? 'border-red-500' : ''}
               />
@@ -141,7 +147,7 @@ export default function MechanicLogin() {
               className="w-full touch-target"
               disabled={isLoading}
             >
-              {isLoading ? 'Вход...' : 'Войти'}
+              {isLoading ? t('login.loggingIn') : t('login.loginButton')}
             </Button>
           </form>
         </CardContent>

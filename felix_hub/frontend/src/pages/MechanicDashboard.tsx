@@ -10,6 +10,7 @@ import OrdersList from '@/features/orders/OrdersList';
 import { setupPolling } from '@/api/orders';
 import api from '@/lib/api';
 import type { MechanicStats } from '@/types';
+import { useTranslation } from 'react-i18next';
 
 export default function MechanicDashboard() {
   const [stats, setStats] = useState<MechanicStats | null>(null);
@@ -17,6 +18,7 @@ export default function MechanicDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
+  const { t } = useTranslation();
 
   const fetchStats = useCallback(async () => {
     try {
@@ -26,13 +28,13 @@ export default function MechanicDashboard() {
     } catch (err: unknown) {
       console.error('Error fetching stats:', err);
       const error = err as { response?: { data?: { error?: string } } };
-      const message = error.response?.data?.error || 'Ошибка загрузки статистики';
+      const message = error.response?.data?.error || t('dashboard.errors.loadingStats');
       setError(message);
       if (loading) {
         toast.error(message);
       }
     }
-  }, [loading]);
+  }, [loading, t]);
 
   useEffect(() => {
     fetchStats();
@@ -56,7 +58,7 @@ export default function MechanicDashboard() {
         onClick={() => navigate('/mechanic/orders/new')}
       >
         <Plus className="h-5 w-5 mr-2" />
-        Создать заказ
+        {t('dashboard.createOrder')}
       </Button>
 
       {/* Статистика */}
@@ -66,7 +68,7 @@ export default function MechanicDashboard() {
             <div className="flex flex-col items-center text-center">
               <Wrench className="h-8 w-8 text-blue-600 mb-2" />
               <p className="text-2xl font-bold">{stats?.active_orders || 0}</p>
-              <p className="text-xs text-gray-600">В работе</p>
+              <p className="text-xs text-gray-600">{t('dashboard.stats.active')}</p>
             </div>
           </CardContent>
         </Card>
@@ -76,7 +78,7 @@ export default function MechanicDashboard() {
             <div className="flex flex-col items-center text-center">
               <CheckCircle className="h-8 w-8 text-green-600 mb-2" />
               <p className="text-2xl font-bold">{stats?.completed_today || 0}</p>
-              <p className="text-xs text-gray-600">Сегодня</p>
+              <p className="text-xs text-gray-600">{t('dashboard.stats.completed')}</p>
             </div>
           </CardContent>
         </Card>
@@ -88,7 +90,7 @@ export default function MechanicDashboard() {
               <p className="text-2xl font-bold">
                 {Math.floor((stats?.time_today_minutes || 0) / 60)}ч
               </p>
-              <p className="text-xs text-gray-600">Времени</p>
+              <p className="text-xs text-gray-600">{t('dashboard.stats.time')}</p>
             </div>
           </CardContent>
         </Card>
@@ -97,10 +99,10 @@ export default function MechanicDashboard() {
       {/* Фильтры */}
       <Tabs value={filter} onValueChange={setFilter} className="mb-6">
         <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="all">Все</TabsTrigger>
-          <TabsTrigger value="новый">Новые</TabsTrigger>
-          <TabsTrigger value="в работе">В работе</TabsTrigger>
-          <TabsTrigger value="завершен">Готовые</TabsTrigger>
+          <TabsTrigger value="all">{t('dashboard.filters.all')}</TabsTrigger>
+          <TabsTrigger value="новый">{t('dashboard.filters.new')}</TabsTrigger>
+          <TabsTrigger value="в работе">{t('dashboard.filters.inProgress')}</TabsTrigger>
+          <TabsTrigger value="завершен">{t('dashboard.filters.completed')}</TabsTrigger>
         </TabsList>
       </Tabs>
 

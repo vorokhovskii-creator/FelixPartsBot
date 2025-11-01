@@ -1,6 +1,7 @@
 import { HashRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { Toaster } from 'sonner';
 import { useEffect, lazy, Suspense } from 'react';
+import { useTranslation } from 'react-i18next';
 import ErrorBoundary from './components/ErrorBoundary';
 import ProtectedRoute from './components/ProtectedRoute';
 import MechanicLayout from './components/mechanic/MechanicLayout';
@@ -36,20 +37,35 @@ function DeeplinkHandler() {
 }
 
 function LoadingFallback() {
+  const { t } = useTranslation();
+  
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
       <div className="text-center">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-        <p className="text-gray-600">Загрузка...</p>
+        <p className="text-gray-600">{t('common.loading')}</p>
       </div>
     </div>
   );
+}
+
+function DirectionSetter() {
+  const { i18n } = useTranslation();
+
+  useEffect(() => {
+    const dir = i18n.language === 'he' ? 'rtl' : 'ltr';
+    document.documentElement.dir = dir;
+    document.documentElement.lang = i18n.language;
+  }, [i18n.language]);
+
+  return null;
 }
 
 function App() {
   return (
     <ErrorBoundary>
       <HashRouter>
+        <DirectionSetter />
         <DeeplinkHandler />
         <Suspense fallback={<LoadingFallback />}>
           <Routes>

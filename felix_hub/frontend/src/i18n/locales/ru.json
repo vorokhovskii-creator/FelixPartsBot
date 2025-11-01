@@ -1,0 +1,207 @@
+{
+  "common": {
+    "loading": "Загрузка...",
+    "error": "Ошибка",
+    "cancel": "Отмена",
+    "save": "Сохранить",
+    "delete": "Удалить",
+    "edit": "Изменить",
+    "search": "Поиск",
+    "filter": "Фильтр",
+    "close": "Закрыть",
+    "confirm": "Подтвердить",
+    "back": "Назад",
+    "next": "Далее",
+    "submit": "Отправить",
+    "add": "Добавить",
+    "remove": "Удалить"
+  },
+  "header": {
+    "appName": "Felix Hub",
+    "logout": "Выйти"
+  },
+  "navigation": {
+    "orders": "Заказы",
+    "time": "Время",
+    "profile": "Профиль"
+  },
+  "login": {
+    "title": "Вход для механиков",
+    "phoneLabel": "Номер телефона",
+    "phonePlaceholder": "Введите номер телефона",
+    "passwordLabel": "Пароль",
+    "passwordPlaceholder": "Введите пароль",
+    "loginButton": "Войти",
+    "loggingIn": "Вход...",
+    "errors": {
+      "invalidPhone": "Неверный номер телефона",
+      "invalidPassword": "Пароль должен содержать не менее 4 символов",
+      "loginFailed": "Ошибка входа. Попробуйте снова.",
+      "unauthorized": "Неверные учетные данные"
+    },
+    "deeplink": {
+      "loggingInWithToken": "Вход с токеном...",
+      "redirectingToOrder": "Переход к заказу..."
+    }
+  },
+  "dashboard": {
+    "createOrder": "Создать заказ",
+    "stats": {
+      "active": "В работе",
+      "completed": "Сегодня",
+      "time": "Времени"
+    },
+    "filters": {
+      "all": "Все",
+      "new": "Новые",
+      "inProgress": "В работе",
+      "completed": "Готовые"
+    },
+    "errors": {
+      "loadingStats": "Ошибка загрузки статистики"
+    }
+  },
+  "orders": {
+    "title": "Заказы",
+    "empty": "Заказы не найдены",
+    "status": {
+      "new": "Новый",
+      "inProgress": "В работе",
+      "completed": "Завершен",
+      "cancelled": "Отменен"
+    },
+    "details": {
+      "orderNumber": "Заказ №{{number}}",
+      "customer": "Клиент",
+      "phone": "Телефон",
+      "device": "Устройство",
+      "issue": "Проблема",
+      "notes": "Примечания",
+      "status": "Статус",
+      "createdAt": "Создан",
+      "updatedAt": "Обновлен"
+    },
+    "actions": {
+      "start": "Начать работу",
+      "pause": "Пауза",
+      "complete": "Завершить",
+      "cancel": "Отменить",
+      "addComment": "Добавить комментарий",
+      "addPart": "Добавить деталь"
+    }
+  },
+  "newOrder": {
+    "title": "Новый заказ",
+    "customer": {
+      "title": "Информация о клиенте",
+      "name": "Имя клиента",
+      "namePlaceholder": "Введите имя клиента",
+      "phone": "Номер телефона",
+      "phonePlaceholder": "Введите номер телефона"
+    },
+    "device": {
+      "title": "Информация об устройстве",
+      "type": "Тип устройства",
+      "typePlaceholder": "например, iPhone 12",
+      "issue": "Описание проблемы",
+      "issuePlaceholder": "Опишите проблему"
+    },
+    "notes": {
+      "title": "Дополнительные примечания",
+      "placeholder": "Дополнительная информация..."
+    },
+    "submit": "Создать заказ",
+    "creating": "Создание...",
+    "errors": {
+      "createFailed": "Не удалось создать заказ",
+      "requiredFields": "Заполните все обязательные поля"
+    },
+    "success": "Заказ успешно создан"
+  },
+  "orderDetails": {
+    "title": "Детали заказа",
+    "customer": "Клиент",
+    "phone": "Телефон",
+    "device": "Устройство",
+    "issue": "Проблема",
+    "notes": "Примечания",
+    "status": "Статус",
+    "time": "Затрачено времени",
+    "parts": "Использованные детали",
+    "comments": "Комментарии",
+    "totalCost": "Общая стоимость",
+    "startWork": "Начать работу",
+    "pauseWork": "Приостановить работу",
+    "completeOrder": "Завершить заказ",
+    "addComment": "Добавить комментарий",
+    "commentPlaceholder": "Добавить комментарий...",
+    "errors": {
+      "loadFailed": "Не удалось загрузить детали заказа",
+      "updateFailed": "Не удалось обновить заказ",
+      "addCommentFailed": "Не удалось добавить комментарий"
+    }
+  },
+  "timeHistory": {
+    "title": "История времени",
+    "today": "Сегодня",
+    "thisWeek": "На этой неделе",
+    "thisMonth": "В этом месяце",
+    "totalHours": "Всего часов",
+    "ordersCompleted": "Заказов завершено",
+    "averageTime": "Среднее время на заказ",
+    "empty": "Записей о времени не найдено"
+  },
+  "profile": {
+    "title": "Профиль",
+    "name": "Имя",
+    "phone": "Телефон",
+    "email": "Email",
+    "role": "Роль",
+    "mechanic": "Механик",
+    "settings": "Настройки",
+    "language": "Язык",
+    "changePassword": "Изменить пароль",
+    "logout": "Выйти"
+  },
+  "parts": {
+    "title": "Каталог деталей",
+    "search": "Поиск деталей...",
+    "category": "Категория",
+    "price": "Цена",
+    "stock": "В наличии",
+    "addToOrder": "Добавить к заказу",
+    "quantity": "Количество",
+    "total": "Итого"
+  },
+  "comments": {
+    "title": "Комментарии",
+    "add": "Добавить комментарий",
+    "placeholder": "Написать комментарий...",
+    "empty": "Комментариев пока нет",
+    "postedBy": "Опубликовано {{name}}",
+    "at": "в {{time}}"
+  },
+  "timeTracker": {
+    "title": "Трекер времени",
+    "start": "Запустить таймер",
+    "pause": "Приостановить таймер",
+    "resume": "Возобновить таймер",
+    "stop": "Остановить таймер",
+    "elapsed": "Прошло времени",
+    "total": "Всего времени"
+  },
+  "statusButtons": {
+    "start": "Начать",
+    "pause": "Пауза",
+    "resume": "Возобновить",
+    "complete": "Завершить"
+  },
+  "errors": {
+    "somethingWentWrong": "Что-то пошло не так",
+    "tryAgain": "Пожалуйста, попробуйте снова",
+    "networkError": "Ошибка сети. Проверьте подключение.",
+    "unauthorized": "Не авторизован. Пожалуйста, войдите снова.",
+    "notFound": "Не найдено",
+    "serverError": "Ошибка сервера. Попробуйте позже."
+  }
+}

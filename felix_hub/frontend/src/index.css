@@ -31,3 +31,35 @@ body {
   min-height: 44px;
   min-width: 44px;
 }
+
+/* RTL support for Hebrew */
+[dir="rtl"] {
+  direction: rtl;
+  text-align: right;
+}
+
+[dir="rtl"] .flex {
+  flex-direction: row-reverse;
+}
+
+/* Fix for bottom navigation icons in RTL */
+[dir="rtl"] .fixed.bottom-0 .flex {
+  flex-direction: row;
+}
+
+/* Adjust margins and padding for RTL */
+[dir="rtl"] .mr-2 {
+  margin-right: 0;
+  margin-left: 0.5rem;
+}
+
+[dir="rtl"] .ml-2 {
+  margin-left: 0;
+  margin-right: 0.5rem;
+}
+
+/* Fix dropdown positioning in RTL */
+[dir="rtl"] .absolute.right-0 {
+  right: auto;
+  left: 0;
+}
