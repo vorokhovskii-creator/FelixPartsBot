@@ -17,7 +17,8 @@
     "remove": "Remove"
   },
   "header": {
-    "appName": "Felix Hub",
+    "appName": "FelixPartsBot",
+    "tagline": "Mechanic Workspace",
     "logout": "Logout"
   },
   "navigation": {

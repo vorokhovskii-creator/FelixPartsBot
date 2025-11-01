@@ -54,43 +54,43 @@ export default function MechanicDashboard() {
     <div className="container max-w-4xl mx-auto px-4 py-6">
       {/* Кнопка создания заказа */}
       <Button 
-        className="w-full mb-6"
+        className="w-full mb-6 h-12"
         onClick={() => navigate('/mechanic/orders/new')}
       >
-        <Plus className="h-5 w-5 mr-2" />
+        <Plus className="h-5 w-5" />
         {t('dashboard.createOrder')}
       </Button>
 
       {/* Статистика */}
-      <div className="grid grid-cols-3 gap-3 mb-6">
-        <Card>
+      <div className="grid grid-cols-3 gap-4 mb-6">
+        <Card className="border-l-4 border-l-primary">
           <CardContent className="p-4">
             <div className="flex flex-col items-center text-center">
-              <Wrench className="h-8 w-8 text-blue-600 mb-2" />
-              <p className="text-2xl font-bold">{stats?.active_orders || 0}</p>
-              <p className="text-xs text-gray-600">{t('dashboard.stats.active')}</p>
+              <Wrench className="h-9 w-9 text-primary mb-3" />
+              <p className="text-3xl font-bold text-foreground">{stats?.active_orders || 0}</p>
+              <p className="text-xs text-muted-foreground font-medium mt-1">{t('dashboard.stats.active')}</p>
             </div>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="border-l-4 border-l-success">
           <CardContent className="p-4">
             <div className="flex flex-col items-center text-center">
-              <CheckCircle className="h-8 w-8 text-green-600 mb-2" />
-              <p className="text-2xl font-bold">{stats?.completed_today || 0}</p>
-              <p className="text-xs text-gray-600">{t('dashboard.stats.completed')}</p>
+              <CheckCircle className="h-9 w-9 text-success mb-3" />
+              <p className="text-3xl font-bold text-foreground">{stats?.completed_today || 0}</p>
+              <p className="text-xs text-muted-foreground font-medium mt-1">{t('dashboard.stats.completed')}</p>
             </div>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="border-l-4 border-l-warning">
           <CardContent className="p-4">
             <div className="flex flex-col items-center text-center">
-              <Clock className="h-8 w-8 text-orange-600 mb-2" />
-              <p className="text-2xl font-bold">
+              <Clock className="h-9 w-9 text-warning mb-3" />
+              <p className="text-3xl font-bold text-foreground">
                 {Math.floor((stats?.time_today_minutes || 0) / 60)}ч
               </p>
-              <p className="text-xs text-gray-600">{t('dashboard.stats.time')}</p>
+              <p className="text-xs text-muted-foreground font-medium mt-1">{t('dashboard.stats.time')}</p>
             </div>
           </CardContent>
         </Card>
@@ -108,10 +108,10 @@ export default function MechanicDashboard() {
 
       {/* Список заказов */}
       {error && (
-        <Card className="border-red-200 bg-red-50 mb-4">
-          <CardContent className="p-4 flex items-center gap-2 text-red-800">
-            <AlertCircle className="h-5 w-5" />
-            <span>{error}</span>
+        <Card className="border-error/50 bg-error/10 mb-4">
+          <CardContent className="p-4 flex items-center gap-3">
+            <AlertCircle className="h-5 w-5 text-error flex-shrink-0" />
+            <span className="text-sm font-medium text-error-foreground">{error}</span>
           </CardContent>
         </Card>
       )}
