@@ -1,8 +1,13 @@
 import os
+import sys
 import logging
 import time
 import requests
 from typing import Optional, List
+
+# Add backend directory to path for config import
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+import config
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +27,7 @@ def _get_admin_chat_ids_raw() -> str:
 
 def _is_feature_enabled() -> bool:
     """Check if admin notifications are enabled."""
-    return os.getenv('ENABLE_TG_ADMIN_NOTIFS', 'false').lower() in ('true', '1', 'yes')
+    return config.ENABLE_TG_ADMIN_NOTIFS
 
 
 def _get_frontend_url() -> str:
@@ -151,7 +156,7 @@ def _send_telegram_message(chat_id: str, message: str, parse_mode: str = 'HTML')
 
 def _is_mechanic_notifs_enabled() -> bool:
     """Check if mechanic status change notifications are enabled."""
-    return os.getenv('ENABLE_TG_MECH_NOTIFS', 'false').lower() in ('true', '1', 'yes')
+    return config.ENABLE_TG_MECH_NOTIFS
 
 
 def _generate_mechanic_order_link(order_id: int) -> str:
