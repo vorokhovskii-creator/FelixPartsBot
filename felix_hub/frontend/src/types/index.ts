@@ -9,7 +9,6 @@ export interface Order {
   status: 'новый' | 'в работе' | 'готов' | 'выдан';
   work_status: 'новый' | 'в работе' | 'на паузе' | 'завершен';
   photo_url?: string;
-  phone?: string;
   created_at: string;
   updated_at: string;
   total_time_minutes: number;
