@@ -5,8 +5,10 @@
  * Automatically fetches feature flags from backend on mount.
  */
 
-import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { getFeatureFlags, fetchFeatureFlags, isFeatureEnabled, FeatureFlags } from './env';
+import React, { createContext, useContext, useEffect, useState } from 'react';
+import type { ReactNode } from 'react';
+import { getFeatureFlags, fetchFeatureFlags, isFeatureEnabled } from './env';
+import type { FeatureFlags } from './env';
 
 interface FeatureFlagsContextType {
   flags: FeatureFlags;
