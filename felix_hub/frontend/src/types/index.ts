@@ -1,7 +1,8 @@
 export interface Order {
   id: number;
   mechanic_name: string;
-  vin: string;
+  vin?: string;
+  car_number?: string;
   category: string;
   part_name: string;
   part_type: string;

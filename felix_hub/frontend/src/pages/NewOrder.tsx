@@ -13,7 +13,7 @@ import OrderConfirmation from '@/components/mechanic/order-wizard/OrderConfirmat
 const WIZARD_STEPS = {
   CATEGORY: 1,
   PARTS: 2,
-  VIN: 3,
+  CAR_NUMBER: 3,
   ORIGINALITY: 4,
   PHOTO: 5,
   CONFIRMATION: 6,
@@ -27,7 +27,7 @@ export default function NewOrder() {
   
   const [categoryId, setCategoryId] = useState<number | null>(null);
   const [selectedPartIds, setSelectedPartIds] = useState<number[]>([]);
-  const [vin, setVin] = useState('');
+  const [carNumber, setCarNumber] = useState('');
   const [partType, setPartType] = useState<'original' | 'analog' | 'any'>('original');
   const [photo, setPhoto] = useState<string | null>(null);
 
@@ -39,7 +39,7 @@ export default function NewOrder() {
       const formData = new FormData();
       formData.append('category_id', categoryId!.toString());
       formData.append('part_ids', JSON.stringify(selectedPartIds));
-      formData.append('vin', vin);
+      formData.append('car_number', carNumber);
       formData.append('part_type', partType);
       
       if (photo) {
@@ -105,10 +105,10 @@ export default function NewOrder() {
           />
         )}
 
-        {step === WIZARD_STEPS.VIN && (
+        {step === WIZARD_STEPS.CAR_NUMBER && (
           <VinInput
-            value={vin}
-            onChange={setVin}
+            value={carNumber}
+            onChange={setCarNumber}
             onNext={nextStep}
             onBack={prevStep}
           />
@@ -138,7 +138,7 @@ export default function NewOrder() {
           <OrderConfirmation
             categoryId={categoryId!}
             partIds={selectedPartIds}
-            vin={vin}
+            carNumber={carNumber}
             partType={partType}
             photo={photo}
             onSubmit={handleSubmit}
