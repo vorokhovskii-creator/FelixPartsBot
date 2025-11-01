@@ -24,6 +24,11 @@ Perfect for: Testing the system, development setup, quick demo
 
 Perfect for: Production deployment, system administrators, full setup
 
+### 🚀 I Want to Enable New Features in Production
+→ **Read:** [PRODUCTION_ROLLOUT_INDEX.md](PRODUCTION_ROLLOUT_INDEX.md)
+
+Perfect for: Feature flag rollout, staged deployments, production updates
+
 ### 🔍 I Want to Understand the System
 → **Read:** [README.md](README.md)
 
