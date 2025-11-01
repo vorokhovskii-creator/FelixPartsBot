@@ -9,6 +9,7 @@ import VinInput from '@/components/mechanic/order-wizard/VinInput';
 import OriginalitySelector from '@/components/mechanic/order-wizard/OriginalitySelector';
 import PhotoUpload from '@/components/mechanic/order-wizard/PhotoUpload';
 import OrderConfirmation from '@/components/mechanic/order-wizard/OrderConfirmation';
+import type { SelectedPart } from '@/types';
 
 const WIZARD_STEPS = {
   CATEGORY: 1,
@@ -26,7 +27,7 @@ export default function NewOrder() {
   const [step, setStep] = useState<WizardStep>(WIZARD_STEPS.CATEGORY);
   
   const [categoryId, setCategoryId] = useState<number | null>(null);
-  const [selectedPartIds, setSelectedPartIds] = useState<number[]>([]);
+  const [selectedParts, setSelectedParts] = useState<SelectedPart[]>([]);
   const [carNumber, setCarNumber] = useState('');
   const [partType, setPartType] = useState<'original' | 'analog' | 'any'>('original');
   const [photo, setPhoto] = useState<string | null>(null);
@@ -36,9 +37,12 @@ export default function NewOrder() {
 
   const handleSubmit = async () => {
     try {
+      const catalogParts = selectedParts.filter((p) => !p.isCustom);
+      const customParts = selectedParts.filter((p) => p.isCustom);
+
       const formData = new FormData();
       formData.append('category_id', categoryId!.toString());
-      formData.append('part_ids', JSON.stringify(selectedPartIds));
+      formData.append('part_ids', JSON.stringify(catalogParts.map((p) => p.id)));
       formData.append('car_number', carNumber);
       formData.append('part_type', partType);
       
@@ -47,9 +51,21 @@ export default function NewOrder() {
         formData.append('photo', blob, 'order-photo.jpg');
       }
 
-      await api.post('/mechanic/orders', formData, {
+      const response = await api.post('/mechanic/orders', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
+
+      const orderId = response.data.id;
+
+      if (customParts.length > 0) {
+        for (const part of customParts) {
+          await api.post(`/mechanic/orders/${orderId}/custom-parts`, {
+            name: part.name,
+            quantity: part.quantity || 1,
+            price: part.price || 0,
+          });
+        }
+      }
 
       toast.success('Заказ создан успешно!');
       navigate('/mechanic/dashboard');
@@ -98,8 +114,8 @@ export default function NewOrder() {
         {step === WIZARD_STEPS.PARTS && (
           <PartsSelector
             categoryId={categoryId!}
-            selectedIds={selectedPartIds}
-            onSelect={setSelectedPartIds}
+            selectedParts={selectedParts}
+            onSelectParts={setSelectedParts}
             onNext={nextStep}
             onBack={prevStep}
           />
@@ -137,7 +153,7 @@ export default function NewOrder() {
         {step === WIZARD_STEPS.CONFIRMATION && (
           <OrderConfirmation
             categoryId={categoryId!}
-            partIds={selectedPartIds}
+            selectedParts={selectedParts}
             carNumber={carNumber}
             partType={partType}
             photo={photo}

@@ -2,14 +2,14 @@ import { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { CheckCircle, ArrowLeft } from 'lucide-react';
+import { CheckCircle, ArrowLeft, Package } from 'lucide-react';
 import { toast } from 'sonner';
 import api from '@/lib/api';
-import type { Category, Part } from '@/types';
+import type { Category, Part, SelectedPart } from '@/types';
 
 interface OrderConfirmationProps {
   categoryId: number;
-  partIds: number[];
+  selectedParts: SelectedPart[];
   carNumber: string;
   partType: 'original' | 'analog' | 'any';
   photo: string | null;
@@ -19,7 +19,7 @@ interface OrderConfirmationProps {
 
 export default function OrderConfirmation({
   categoryId,
-  partIds,
+  selectedParts,
   carNumber,
   partType,
   photo,
@@ -27,23 +27,29 @@ export default function OrderConfirmation({
   onBack,
 }: OrderConfirmationProps) {
   const [category, setCategory] = useState<Category | null>(null);
-  const [parts, setParts] = useState<Part[]>([]);
+  const [catalogParts, setCatalogParts] = useState<Part[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
+        const catalogPartIds = selectedParts
+          .filter((p) => !p.isCustom && p.id)
+          .map((p) => p.id!);
+
         const [categoryRes, partsRes] = await Promise.all([
           api.get(`/categories`),
-          api.get(`/parts`, { params: { category_id: categoryId } }),
+          catalogPartIds.length > 0
+            ? api.get(`/parts`, { params: { category_id: categoryId } })
+            : Promise.resolve({ data: [] }),
         ]);
 
         const foundCategory = categoryRes.data.find((c: Category) => c.id === categoryId);
         setCategory(foundCategory || null);
 
-        const selectedParts = partsRes.data.filter((p: Part) => partIds.includes(p.id));
-        setParts(selectedParts);
+        const filteredParts = partsRes.data.filter((p: Part) => catalogPartIds.includes(p.id));
+        setCatalogParts(filteredParts);
       } catch (error: any) {
         toast.error(error.response?.data?.error || 'Ошибка загрузки данных');
       } finally {
@@ -52,7 +58,7 @@ export default function OrderConfirmation({
     };
 
     fetchData();
-  }, [categoryId, partIds]);
+  }, [categoryId, selectedParts]);
 
   const handleSubmit = async () => {
     setIsSubmitting(true);
@@ -102,13 +108,30 @@ export default function OrderConfirmation({
 
           <div>
             <h3 className="font-semibold mb-2">Запчасти:</h3>
-            <ul className="space-y-1">
-              {parts.map((part) => (
+            <ul className="space-y-2">
+              {catalogParts.map((part) => (
                 <li key={part.id} className="flex items-start">
                   <CheckCircle className="h-5 w-5 text-green-600 mr-2 flex-shrink-0 mt-0.5" />
                   <span>{part.name_ru}</span>
                 </li>
               ))}
+              {selectedParts
+                .filter((p) => p.isCustom)
+                .map((part, idx) => (
+                  <li key={`custom-${idx}`} className="flex items-start">
+                    <Package className="h-5 w-5 text-amber-600 mr-2 flex-shrink-0 mt-0.5" />
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <span>{part.name}</span>
+                        <Badge className="bg-amber-200 text-amber-800">Кастомная</Badge>
+                      </div>
+                      <p className="text-sm text-gray-600">
+                        Кол-во: {part.quantity || 1}
+                        {part.price && ` • Цена: ${part.price} ₪`}
+                      </p>
+                    </div>
+                  </li>
+                ))}
             </ul>
           </div>
 
