@@ -24,6 +24,7 @@ from models import (db, Order, Category, Part, Mechanic, OrderComment,
                     TimeLog, CustomWorkItem, CustomPartItem, WorkOrderAssignment, NotificationLog)
 from utils.notifier import notify_order_ready, notify_order_status_changed, notify_mechanic_assignment
 from utils.printer import print_order_with_fallback, print_test_receipt
+from utils.logging_utils import StructuredLogger, generate_correlation_id, set_correlation_id
 from services.telegram import notify_mechanic_status_change
 
 load_dotenv()
@@ -76,6 +77,7 @@ logging.basicConfig(
     ]
 )
 logger = logging.getLogger(__name__)
+slogger = StructuredLogger(__name__)
 
 
 def str_to_bool(value, default=False):
@@ -428,6 +430,10 @@ init_database()
 from api.mechanic_routes import mechanic_bp
 app.register_blueprint(mechanic_bp)
 
+# Register metrics API routes
+from api.metrics import metrics_bp
+app.register_blueprint(metrics_bp)
+
 
 @app.errorhandler(400)
 def bad_request(error):
@@ -447,19 +453,75 @@ def internal_error(error):
 
 @app.route('/health')
 def health_check():
-    """Health check для Railway"""
+    """
+    Enhanced health check with monitoring metrics.
+    Returns 200 for healthy, 503 for unhealthy.
+    """
+    health_status = {
+        'status': 'healthy',
+        'timestamp': datetime.utcnow().isoformat(),
+        'checks': {}
+    }
+    
+    is_healthy = True
+    
+    # Database check
     try:
         with db.engine.connect() as conn:
             conn.execute(text('SELECT 1'))
-        db_status = 'connected'
-    except:
-        db_status = 'disconnected'
+        health_status['checks']['database'] = {'status': 'ok'}
+    except Exception as e:
+        health_status['checks']['database'] = {'status': 'error', 'error': str(e)}
+        is_healthy = False
     
-    return jsonify({
-        'status': 'healthy',
-        'database': db_status,
-        'timestamp': datetime.utcnow().isoformat()
-    }), 200
+    # Check for critical alerts
+    try:
+        from utils.analytics import MetricsCollector
+        collector = MetricsCollector(db.session)
+        alerts = collector.get_alert_conditions()
+        
+        critical_alerts = [a for a in alerts if a.get('severity') == 'critical']
+        warning_alerts = [a for a in alerts if a.get('severity') == 'warning']
+        
+        health_status['checks']['alerts'] = {
+            'status': 'critical' if critical_alerts else ('warning' if warning_alerts else 'ok'),
+            'critical_count': len(critical_alerts),
+            'warning_count': len(warning_alerts)
+        }
+        
+        # Fail health check on critical alerts
+        if critical_alerts:
+            is_healthy = False
+            health_status['status'] = 'unhealthy'
+    except Exception as e:
+        logger.error(f"Error checking alerts in health endpoint: {e}")
+        health_status['checks']['alerts'] = {'status': 'error', 'error': str(e)}
+    
+    # Check circuit breaker status
+    try:
+        from utils.circuit_breaker import get_all_circuit_breakers
+        breakers = get_all_circuit_breakers()
+        
+        open_breakers = [name for name, breaker in breakers.items() if breaker.get_state().value == 'open']
+        
+        health_status['checks']['circuit_breakers'] = {
+            'status': 'warning' if open_breakers else 'ok',
+            'open_count': len(open_breakers),
+            'open_breakers': open_breakers
+        }
+        
+        # Warning but don't fail health check for open breakers
+        if open_breakers:
+            health_status['status'] = 'degraded'
+    except Exception as e:
+        logger.error(f"Error checking circuit breakers in health endpoint: {e}")
+        health_status['checks']['circuit_breakers'] = {'status': 'error', 'error': str(e)}
+    
+    if not is_healthy:
+        health_status['status'] = 'unhealthy'
+        return jsonify(health_status), 503
+    
+    return jsonify(health_status), 200
 
 
 @app.route('/admin')
@@ -670,15 +732,23 @@ def get_order(order_id):
 
 @app.route('/api/orders/<int:order_id>', methods=['PATCH'])
 def update_order(order_id):
+    # Generate correlation ID for this request
+    correlation_id = generate_correlation_id()
+    set_correlation_id(correlation_id)
+    
+    slogger.info("Starting order update", orderId=order_id)
+    
     try:
         order = Order.query.get(order_id)
         
         if not order:
+            slogger.warning("Order not found", orderId=order_id)
             return jsonify({'error': 'Заказ не найден'}), 404
         
         data = request.get_json()
         
         if not data:
+            slogger.warning("Invalid JSON in request", orderId=order_id)
             return jsonify({'error': 'Невалидный JSON'}), 400
         
         old_status = order.status
@@ -686,6 +756,8 @@ def update_order(order_id):
         if 'status' in data:
             new_status = data['status']
             order.status = new_status
+            
+            slogger.info("Order status changed", orderId=order_id, old_status=old_status, new_status=new_status)
             
             if new_status == 'готов':
                 # Печать чека
@@ -697,7 +769,7 @@ def update_order(order_id):
                 # Отметить как напечатанный если печать была успешной
                 if print_success:
                     order.printed = True
-                    logger.info(f"Order {order_id} marked as printed automatically")
+                    slogger.info("Order marked as printed", orderId=order_id)
             elif new_status in ['в работе', 'выдан']:
                 notify_order_status_changed(order, old_status, new_status)
             
@@ -705,8 +777,9 @@ def update_order(order_id):
             if old_status != new_status and order.assigned_mechanic:
                 try:
                     notify_mechanic_status_change(order, old_status, new_status, order.assigned_mechanic, db_session=db.session)
+                    slogger.info("Mechanic notified of status change", orderId=order_id, mechanic_id=order.assigned_mechanic.id)
                 except Exception as e:
-                    logger.error(f"Error notifying mechanic about status change: {e}")
+                    slogger.error("Error notifying mechanic about status change", orderId=order_id, error=str(e))
                     # Don't fail the status update if notification fails
         
         if 'printed' in data:
@@ -773,13 +846,13 @@ def update_order(order_id):
         
         db.session.commit()
         
-        logger.info(f"Order updated: ID={order_id}, status={order.status}")
+        slogger.info("Order updated successfully", orderId=order_id, status=order.status)
         
         return jsonify(order.to_dict()), 200
         
     except Exception as e:
         db.session.rollback()
-        logger.error(f"Error updating order {order_id}: {e}")
+        slogger.error("Error updating order", orderId=order_id, error=str(e), error_type=type(e).__name__)
         return jsonify({'error': 'Ошибка обновления заказа'}), 500
 
 

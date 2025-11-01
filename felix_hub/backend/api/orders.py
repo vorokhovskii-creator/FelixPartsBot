@@ -1,8 +1,15 @@
 import logging
 from flask import request, jsonify
 from models import db, Order
+import sys
+import os
+
+# Add backend directory to path
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+from utils.logging_utils import StructuredLogger, with_correlation_id, set_correlation_id, generate_correlation_id
 
 logger = logging.getLogger(__name__)
+slogger = StructuredLogger(__name__)
 
 
 def sanitize_legacy_parts_payload(parts_list):
@@ -100,15 +107,23 @@ def create_order(enable_car_number, allow_any_car_number, normalize_car_number, 
     
     This function handles order creation and triggers admin notifications.
     """
+    # Generate correlation ID for this request
+    correlation_id = generate_correlation_id()
+    set_correlation_id(correlation_id)
+    
+    slogger.info("Starting order creation")
+    
     try:
         data = request.get_json()
 
         if not data:
+            slogger.warning("Invalid JSON in request")
             return jsonify({'error': 'Невалидный JSON'}), 400
 
         required_fields = ['mechanic_name', 'telegram_id', 'category']
         for field in required_fields:
             if field not in data:
+                slogger.warning("Missing required field", field=field)
                 return jsonify({'error': f'Отсутствует обязательное поле: {field}'}), 400
 
         parts_payload = data.get('parts')
@@ -178,19 +193,20 @@ def create_order(enable_car_number, allow_any_car_number, normalize_car_number, 
         db.session.add(order)
         db.session.commit()
 
-        logger.info(f"Order created: ID={order.id}, mechanic={order.mechanic_name}")
+        slogger.info("Order created successfully", orderId=order.id, mechanic=order.mechanic_name, category=order.category)
         
         # Notify admin about new order
         try:
             from services.telegram import notify_admin_new_order
             notify_admin_new_order(order, db_session=db.session)
+            slogger.info("Admin notification sent", orderId=order.id)
         except Exception as e:
             # Don't fail order creation if notification fails
-            logger.error(f"Failed to send admin notification for order {order.id}: {e}")
+            slogger.error("Failed to send admin notification", orderId=order.id, error=str(e))
         
         return jsonify(order.to_dict()), 201
 
     except Exception as e:
         db.session.rollback()
-        logger.error(f"Error creating order: {e}")
+        slogger.error("Error creating order", error=str(e), error_type=type(e).__name__)
         return jsonify({'error': 'Ошибка создания заказа'}), 500
