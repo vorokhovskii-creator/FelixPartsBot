@@ -100,8 +100,12 @@ export default function OrderDetailsPage() {
               <p className="font-medium">{order.mechanic_name}</p>
             </div>
             <div>
-              <span className="text-sm text-gray-600">VIN:</span>
-              <p className="font-medium font-mono">{order.vin}</p>
+              <span className="text-sm text-gray-600">
+                {order.car_number ? 'Номер автомобиля:' : 'VIN:'}
+              </span>
+              <p className="font-medium font-mono">
+                {order.car_number || order.vin || 'Не указан'}
+              </p>
             </div>
             <div>
               <span className="text-sm text-gray-600">Категория:</span>

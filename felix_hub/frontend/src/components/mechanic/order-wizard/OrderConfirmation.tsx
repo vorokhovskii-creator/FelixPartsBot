@@ -10,7 +10,7 @@ import type { Category, Part } from '@/types';
 interface OrderConfirmationProps {
   categoryId: number;
   partIds: number[];
-  vin: string;
+  carNumber: string;
   partType: 'original' | 'analog' | 'any';
   photo: string | null;
   onSubmit: () => void;
@@ -20,7 +20,7 @@ interface OrderConfirmationProps {
 export default function OrderConfirmation({
   categoryId,
   partIds,
-  vin,
+  carNumber,
   partType,
   photo,
   onSubmit,
@@ -114,7 +114,7 @@ export default function OrderConfirmation({
 
           <div>
             <h3 className="font-semibold mb-1">Номер автомобиля:</h3>
-            <p className="font-mono text-lg">{vin}</p>
+            <p className="font-mono text-lg">{carNumber}</p>
           </div>
 
           <div>

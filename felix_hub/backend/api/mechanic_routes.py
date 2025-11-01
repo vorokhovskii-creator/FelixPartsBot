@@ -532,10 +532,14 @@ def create_order():
     try:
         category_id = request.form.get('category_id')
         part_ids_json = request.form.get('part_ids')
+        car_number = request.form.get('car_number')
         vin = request.form.get('vin')
         part_type = request.form.get('part_type')
         
-        if not all([category_id, part_ids_json, vin, part_type]):
+        # Accept either car_number or vin (for backward compatibility)
+        vehicle_identifier = car_number or vin
+        
+        if not all([category_id, part_ids_json, vehicle_identifier, part_type]):
             return jsonify({'error': 'Все поля обязательны'}), 400
         
         part_ids = json.loads(part_ids_json)
@@ -571,6 +575,7 @@ def create_order():
             mechanic_name=mechanic.name,
             telegram_id=mechanic.telegram_id or '',
             category=category.name_ru,
+            car_number=car_number,
             vin=vin,
             selected_parts=[p.name_ru for p in parts],
             is_original=is_original,

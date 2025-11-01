@@ -153,7 +153,7 @@ export default function MechanicDashboard() {
                       Заказ #{order.id}
                     </h3>
                     <p className="text-sm text-gray-600">
-                      {order.vin || 'VIN не указан'}
+                      {order.car_number || order.vin || 'Номер не указан'}
                     </p>
                   </div>
                   <Badge className={getStatusColor(order.work_status)}>

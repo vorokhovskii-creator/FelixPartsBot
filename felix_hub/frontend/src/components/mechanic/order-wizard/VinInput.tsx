@@ -18,13 +18,18 @@ export default function VinInput({ value, onChange, onNext, onBack }: VinInputPr
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (value.length < 11) {
-      setError('VIN должен содержать минимум 11 символов');
+    if (value.trim().length === 0) {
+      setError('Номер автомобиля обязателен');
       return;
     }
     
-    if (value.length > 17) {
-      setError('VIN не может превышать 17 символов');
+    if (value.length < 4) {
+      setError('Номер автомобиля должен содержать минимум 4 символа');
+      return;
+    }
+    
+    if (value.length > 20) {
+      setError('Номер автомобиля не может превышать 20 символов');
       return;
     }
     
@@ -53,20 +58,20 @@ export default function VinInput({ value, onChange, onNext, onBack }: VinInputPr
         <CardHeader>
           <CardTitle>Номер автомобиля</CardTitle>
           <CardDescription>
-            Введите VIN (11-17 символов) или госномер
+            Введите госномер или VIN автомобиля
           </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit}>
             <div className="space-y-4">
               <div>
-                <Label htmlFor="vin">VIN номер</Label>
+                <Label htmlFor="carNumber">Номер автомобиля</Label>
                 <Input
-                  id="vin"
-                  placeholder="WBADT43452G123456"
+                  id="carNumber"
+                  placeholder="12-345-67 или WBADT43452G123456"
                   value={value}
                   onChange={handleChange}
-                  maxLength={17}
+                  maxLength={20}
                   className="font-mono text-lg"
                 />
                 {value && (
