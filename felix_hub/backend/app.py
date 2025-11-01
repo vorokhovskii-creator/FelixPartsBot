@@ -21,6 +21,7 @@ from models import (db, Order, Category, Part, Mechanic, OrderComment,
                     TimeLog, CustomWorkItem, CustomPartItem, WorkOrderAssignment, NotificationLog)
 from utils.notifier import notify_order_ready, notify_order_status_changed, notify_mechanic_assignment
 from utils.printer import print_order_with_fallback, print_test_receipt
+from services.telegram import notify_mechanic_status_change
 
 load_dotenv()
 
@@ -683,6 +684,14 @@ def update_order(order_id):
                     logger.info(f"Order {order_id} marked as printed automatically")
             elif new_status in ['в работе', 'выдан']:
                 notify_order_status_changed(order, old_status, new_status)
+            
+            # Notify assigned mechanic about status change
+            if old_status != new_status and order.assigned_mechanic:
+                try:
+                    notify_mechanic_status_change(order, old_status, new_status, order.assigned_mechanic, db_session=db.session)
+                except Exception as e:
+                    logger.error(f"Error notifying mechanic about status change: {e}")
+                    # Don't fail the status update if notification fails
         
         if 'printed' in data:
             order.printed = data['printed']
