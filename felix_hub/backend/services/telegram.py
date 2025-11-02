@@ -9,10 +9,17 @@ from typing import Optional, List
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 import config
 
+from utils.logging_utils import StructuredLogger, get_correlation_id
+from utils.circuit_breaker import get_circuit_breaker
+
 logger = logging.getLogger(__name__)
+slogger = StructuredLogger(__name__)
 
 MAX_RETRIES = 3
 BASE_RETRY_DELAY = 1  # seconds
+
+# Initialize circuit breaker for Telegram API
+telegram_breaker = get_circuit_breaker('telegram_api', failure_threshold=10, timeout=120.0)
 
 
 def _get_bot_token() -> Optional[str]:
@@ -76,25 +83,36 @@ def _generate_admin_order_link(order_id: int) -> str:
     return f"{base_url}/#/admin/orders/{order_id}"
 
 
-def _send_telegram_message(chat_id: str, message: str, parse_mode: str = 'HTML') -> bool:
+def _send_telegram_message(chat_id: str, message: str, parse_mode: str = 'HTML', order_id: Optional[int] = None) -> bool:
     """
-    Send a message via Telegram Bot API with retry logic and exponential backoff.
+    Send a message via Telegram Bot API with retry logic, exponential backoff, and circuit breaker.
     
     Args:
         chat_id: Telegram chat ID
         message: Message text
         parse_mode: Parse mode (HTML or Markdown)
+        order_id: Optional order ID for structured logging
         
     Returns:
         bool: True if sent successfully, False otherwise
     """
     bot_token = _get_bot_token()
     if not bot_token:
-        logger.error("TELEGRAM_BOT_TOKEN not configured")
+        slogger.error("TELEGRAM_BOT_TOKEN not configured", chat_id=chat_id, orderId=order_id)
         return False
     
     if not chat_id:
-        logger.error("chat_id is empty")
+        slogger.error("chat_id is empty", orderId=order_id)
+        return False
+    
+    # Check circuit breaker before attempting
+    breaker_state = telegram_breaker.get_state()
+    if breaker_state.value == 'open':
+        slogger.warning(
+            "Telegram circuit breaker is OPEN, skipping send attempt",
+            chat_id=chat_id,
+            orderId=order_id
+        )
         return False
     
     telegram_api_url = f"https://api.telegram.org/bot{bot_token}"
@@ -108,18 +126,49 @@ def _send_telegram_message(chat_id: str, message: str, parse_mode: str = 'HTML')
     
     for attempt in range(MAX_RETRIES):
         try:
-            response = requests.post(url, json=payload, timeout=10)
+            def _make_request():
+                return requests.post(url, json=payload, timeout=10)
+            
+            # Use circuit breaker for the actual request
+            success, response = telegram_breaker.call(_make_request)
+            
+            if not success:
+                slogger.warning(
+                    "Circuit breaker rejected request",
+                    chat_id=chat_id,
+                    orderId=order_id,
+                    attempt=attempt + 1
+                )
+                return False
             
             if response.status_code == 200:
-                logger.info(f"Message sent successfully to admin chat {chat_id}")
+                slogger.info(
+                    "Telegram message sent successfully",
+                    chat_id=chat_id,
+                    orderId=order_id,
+                    attempt=attempt + 1
+                )
                 return True
             elif response.status_code == 429:
                 # Rate limit hit
                 retry_after = response.json().get('parameters', {}).get('retry_after', BASE_RETRY_DELAY * (2 ** attempt))
-                logger.warning(f"Rate limit hit, retrying after {retry_after}s")
+                slogger.warning(
+                    "Telegram rate limit hit",
+                    chat_id=chat_id,
+                    orderId=order_id,
+                    retry_after_seconds=retry_after,
+                    attempt=attempt + 1
+                )
                 time.sleep(retry_after)
             else:
-                logger.error(f"Failed to send message: {response.status_code} - {response.text}")
+                slogger.error(
+                    "Failed to send Telegram message",
+                    chat_id=chat_id,
+                    orderId=order_id,
+                    status_code=response.status_code,
+                    error=response.text[:200],
+                    attempt=attempt + 1
+                )
                 
                 # Don't retry on client errors (4xx except 429)
                 if 400 <= response.status_code < 500 and response.status_code != 429:
@@ -127,29 +176,56 @@ def _send_telegram_message(chat_id: str, message: str, parse_mode: str = 'HTML')
                 
                 if attempt < MAX_RETRIES - 1:
                     delay = BASE_RETRY_DELAY * (2 ** attempt)
-                    logger.info(f"Retrying in {delay}s (attempt {attempt + 1}/{MAX_RETRIES})")
+                    slogger.info(
+                        "Retrying Telegram send",
+                        chat_id=chat_id,
+                        orderId=order_id,
+                        delay_seconds=delay,
+                        attempt=attempt + 1
+                    )
                     time.sleep(delay)
                     
         except requests.exceptions.Timeout:
-            logger.error(f"Timeout sending message to {chat_id} (attempt {attempt + 1}/{MAX_RETRIES})")
+            slogger.error(
+                "Timeout sending Telegram message",
+                chat_id=chat_id,
+                orderId=order_id,
+                attempt=attempt + 1
+            )
             if attempt < MAX_RETRIES - 1:
                 delay = BASE_RETRY_DELAY * (2 ** attempt)
                 time.sleep(delay)
         except requests.exceptions.RequestException as e:
-            logger.error(f"Request error sending message to {chat_id}: {e}")
+            slogger.error(
+                "Request error sending Telegram message",
+                chat_id=chat_id,
+                orderId=order_id,
+                error=str(e),
+                attempt=attempt + 1
+            )
             if attempt < MAX_RETRIES - 1:
                 delay = BASE_RETRY_DELAY * (2 ** attempt)
                 time.sleep(delay)
         except Exception as e:
-            logger.error(f"Unexpected error sending message to {chat_id}: {e}")
+            slogger.error(
+                "Unexpected error sending Telegram message",
+                chat_id=chat_id,
+                orderId=order_id,
+                error=str(e),
+                error_type=type(e).__name__,
+                attempt=attempt + 1
+            )
             if attempt < MAX_RETRIES - 1:
                 delay = BASE_RETRY_DELAY * (2 ** attempt)
                 time.sleep(delay)
     
     # Dead-letter logging
-    logger.error(
-        f"DEAD_LETTER: Failed to send message to {chat_id} after {MAX_RETRIES} attempts. "
-        f"Message preview: {message[:100]}..."
+    slogger.critical(
+        "DEAD_LETTER: Failed to send Telegram message after all retries",
+        chat_id=chat_id,
+        orderId=order_id,
+        max_retries=MAX_RETRIES,
+        message_preview=message[:100]
     )
     return False
 
@@ -240,7 +316,7 @@ def notify_mechanic_status_change(order, old_status: str, new_status: str, mecha
         )
         
         # Send notification with retry logic
-        success = _send_telegram_message(telegram_id, message)
+        success = _send_telegram_message(telegram_id, message, order_id=order.id)
         
         # Log notification
         if db_session:
@@ -322,10 +398,10 @@ def notify_admin_new_order(order, db_session=None) -> bool:
         # Send to all admin chats
         success_count = 0
         for chat_id in admin_chat_ids:
-            if _send_telegram_message(chat_id, message):
+            if _send_telegram_message(chat_id, message, order_id=order.id):
                 success_count += 1
             else:
-                logger.error(f"Failed to notify admin chat {chat_id} about order {order.id}")
+                slogger.error("Failed to notify admin chat", chat_id=chat_id, orderId=order.id)
         
         # Log notification
         if db_session:
